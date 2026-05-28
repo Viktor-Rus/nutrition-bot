@@ -127,11 +127,15 @@ async def analyze_food(message: types.Message):
 # webhook
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
+    try:
+        data = await request.json()
+        print("TELEGRAM UPDATE:", data)
 
-    data = await request.json()
+        update = types.Update(**data)
+        await dp.feed_update(bot, update)
 
-    update = types.Update(**data)
+        return {"ok": True}
 
-    await dp.feed_update(bot, update)
-
-    return {"ok": True}
+    except Exception as e:
+        print("WEBHOOK ERROR:", repr(e))
+        return {"ok": False, "error": str(e)}
