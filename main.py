@@ -78,20 +78,23 @@ async def analyze_food(message: types.Message):
   "comment": ""
 }}
 """
+with open("prompt.txt", "r", encoding="utf-8") as f:
+    BOT_ROLE = f.read()
 
-    response = openai_client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": "Ты nutrition assistant."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
-    )
+
+response = openai_client.responses.create(
+    model="gpt-4.1-mini",
+    instructions=BOT_ROLE,
+    input=text,
+    tools=[
+        {
+            "type": "file_search",
+            "vector_store_ids": [
+                os.getenv("OPENAI_VECTOR_STORE_ID")
+            ]
+        }
+    ]
+)
 
     result = response.choices[0].message.content
 
