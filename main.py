@@ -1,5 +1,4 @@
 import os
-import json
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -16,8 +15,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+OPENAI_VECTOR_STORE_ID = os.getenv("OPENAI_VECTOR_STORE_ID")
 
-# Clients
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
@@ -28,8 +27,30 @@ supabase = create_client(
     SUPABASE_KEY
 )
 
-# FastAPI
 app = FastAPI()
+
+
+def load_bot_role():
+    try:
+        with open("prompt.txt", "r", encoding="utf-8") as file:
+            return file.read()
+    except FileNotFoundError:
+        return """
+Ты — личный AI-нутрициолог и консультант по здоровому образу жизни.
+
+Отвечай по структуре:
+1️⃣ Анализ
+2️⃣ Что хорошо
+3️⃣ Что можно улучшить
+4️⃣ Практический совет
+5️⃣ Вопрос пользователю
+
+Не ставь медицинские диагнозы.
+Если информации недостаточно — задай уточняющий вопрос.
+"""
+
+
+BOT_ROLE = load_bot_role()
 
 
 @app.get("/")
@@ -37,97 +58,69 @@ async def root():
     return {"status": "bot is running"}
 
 
-# /start
 @dp.message(Command("start"))
 async def start(message: types.Message):
-
     telegram_id = message.from_user.id
     name = message.from_user.full_name
 
-    supabase.table("users").upsert({
-        "telegram_id": telegram_id,
-        "name": name
-    }).execute()
+    try:
+        supabase.table("users").upsert({
+            "telegram_id": telegram_id,
+            "name": name
+        }).execute()
+    except Exception as e:
+        print("SUPABASE USER ERROR:", repr(e))
 
     await message.answer(
         "Привет 👋\n\n"
-        "Я nutrition bot.\n"
-        "Отправь мне что ты съел."
+        "Я твой AI-нутрициолог.\n"
+        "Отправь мне описание еды, самочувствия или привычки — я помогу разобрать."
     )
 
 
-# analyze meal
 @dp.message()
 async def analyze_food(message: types.Message):
-
     text = message.text
 
-    prompt = f"""
-Проанализируй прием пищи.
-
-Еда:
-{text}
-
-Верни JSON:
-
-{{
-  "calories": 0,
-  "protein": 0,
-  "fat": 0,
-  "carbs": 0,
-  "comment": ""
-}}
-"""
-with open("prompt.txt", "r", encoding="utf-8") as f:
-    BOT_ROLE = f.read()
-
-
-response = openai_client.responses.create(
-    model="gpt-4.1-mini",
-    instructions=BOT_ROLE,
-    input=text,
-    tools=[
-        {
-            "type": "file_search",
-            "vector_store_ids": [
-                os.getenv("OPENAI_VECTOR_STORE_ID")
-            ]
-        }
-    ]
-)
-
-    result = response.choices[0].message.content
+    if not text:
+        await message.answer("Пока я умею анализировать только текст. Фото добавим следующим шагом.")
+        return
 
     try:
-        data = json.loads(result)
-
-        supabase.table("meals").insert({
-            "telegram_id": message.from_user.id,
-            "text": text,
-            "calories": data["calories"],
-            "protein": data["protein"],
-            "fat": data["fat"],
-            "carbs": data["carbs"],
-            "ai_comment": data["comment"]
-        }).execute()
-
-        await message.answer(
-            f"""
-🍽 Калории: {data['calories']}
-🥩 Белки: {data['protein']}
-🧈 Жиры: {data['fat']}
-🍞 Углеводы: {data['carbs']}
-
-💬 {data['comment']}
-"""
+        response = openai_client.responses.create(
+            model="gpt-4.1-mini",
+            instructions=BOT_ROLE,
+            input=text,
+            tools=[
+                {
+                    "type": "file_search",
+                    "vector_store_ids": [
+                        OPENAI_VECTOR_STORE_ID
+                    ]
+                }
+            ]
         )
 
+        answer = response.output_text
+
+        try:
+            supabase.table("meals").insert({
+                "telegram_id": message.from_user.id,
+                "text": text,
+                "ai_comment": answer
+            }).execute()
+        except Exception as e:
+            print("SUPABASE MEAL ERROR:", repr(e))
+
+        await message.answer(answer)
+
     except Exception as e:
-        print(e)
-        await message.answer("Ошибка анализа еды")
+        print("OPENAI ERROR:", repr(e))
+        await message.answer(
+            "Не смог сейчас проанализировать сообщение. Проверь OPENAI_API_KEY и OPENAI_VECTOR_STORE_ID."
+        )
 
 
-# webhook
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
     try:
