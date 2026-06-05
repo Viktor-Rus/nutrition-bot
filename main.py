@@ -95,11 +95,20 @@ async def analyze_food(message: types.Message):
         }).execute()
 
         history = get_chat_history(telegram_id, limit=10)
+        
+        memory = get_user_memory(telegram_id)
+
+context_input = [
+    {
+        "role": "system",
+        "content": f"Долговременная память о пользователе:\n{memory}"
+    }
+] + history
 
         response = openai_client.responses.create(
             model="gpt-4.1-mini",
             instructions=BOT_ROLE,
-            input=history,
+            input=context_input,
             tools=[
                 {
                     "type": "file_search",
@@ -160,3 +169,20 @@ def get_chat_history(telegram_id, limit=10):
     rows.reverse()
 
     return rows
+
+def get_user_memory(telegram_id):
+    result = (
+        supabase.table("user_memory")
+        .select("fact")
+        .eq("telegram_id", telegram_id)
+        .order("created_at", desc=True)
+        .limit(20)
+        .execute()
+    )
+
+    facts = result.data or []
+
+    if not facts:
+        return ""
+
+    return "\n".join([f"- {item['fact']}" for item in facts])
