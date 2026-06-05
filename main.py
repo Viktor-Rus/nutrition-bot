@@ -80,6 +80,7 @@ async def start(message: types.Message):
 
 @dp.message()
 async def analyze_food(message: types.Message):
+    telegram_id = message.from_user.id
     text = message.text
 
     if not text:
@@ -87,10 +88,18 @@ async def analyze_food(message: types.Message):
         return
 
     try:
+        supabase.table("messages").insert({
+            "telegram_id": telegram_id,
+            "role": "user",
+            "content": text
+        }).execute()
+
+        history = get_chat_history(telegram_id, limit=10)
+
         response = openai_client.responses.create(
             model="gpt-4.1-mini",
             instructions=BOT_ROLE,
-            input=text,
+            input=history,
             tools=[
                 {
                     "type": "file_search",
@@ -103,22 +112,23 @@ async def analyze_food(message: types.Message):
 
         answer = response.output_text
 
-        try:
-            supabase.table("meals").insert({
-                "telegram_id": message.from_user.id,
-                "text": text,
-                "ai_comment": answer
-            }).execute()
-        except Exception as e:
-            print("SUPABASE MEAL ERROR:", repr(e))
+        supabase.table("messages").insert({
+            "telegram_id": telegram_id,
+            "role": "assistant",
+            "content": answer
+        }).execute()
+
+        supabase.table("meals").insert({
+            "telegram_id": telegram_id,
+            "text": text,
+            "ai_comment": answer
+        }).execute()
 
         await message.answer(answer)
 
     except Exception as e:
         print("OPENAI ERROR:", repr(e))
-        await message.answer(
-            "Не смог сейчас проанализировать сообщение. Проверь OPENAI_API_KEY и OPENAI_VECTOR_STORE_ID."
-        )
+        await message.answer("Не смог сейчас проанализировать сообщение.")
 
 
 @app.post("/webhook")
@@ -135,3 +145,18 @@ async def telegram_webhook(request: Request):
     except Exception as e:
         print("WEBHOOK ERROR:", repr(e))
         return {"ok": False, "error": str(e)}
+
+def get_chat_history(telegram_id, limit=10):
+    result = (
+        supabase.table("messages")
+        .select("role, content")
+        .eq("telegram_id", telegram_id)
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+
+    rows = result.data or []
+    rows.reverse()
+
+    return rows
