@@ -1,4 +1,5 @@
 import os
+import json
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -58,6 +59,119 @@ async def root():
     return {"status": "bot is running"}
 
 
+def get_chat_history(telegram_id: int, limit: int = 10):
+    result = (
+        supabase.table("messages")
+        .select("role, content")
+        .eq("telegram_id", telegram_id)
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+
+    rows = result.data or []
+    rows.reverse()
+
+    return rows
+
+
+def get_user_memory(telegram_id: int):
+    result = (
+        supabase.table("user_memory")
+        .select("fact")
+        .eq("telegram_id", telegram_id)
+        .order("created_at", desc=True)
+        .limit(20)
+        .execute()
+    )
+
+    facts = result.data or []
+
+    if not facts:
+        return ""
+
+    return "\n".join([f"- {item['fact']}" for item in facts])
+
+
+def extract_and_save_memory(telegram_id: int, user_message: str, assistant_answer: str):
+    try:
+        response = openai_client.responses.create(
+            model="gpt-4.1-mini",
+            instructions="""
+Ты извлекаешь долгосрочную память о пользователе для AI-нутрициолога.
+
+Сохраняй только факты, которые могут быть полезны в будущем:
+- цели
+- пищевые предпочтения
+- ограничения
+- аллергии
+- режим питания
+- реакции на еду
+- сон
+- стресс
+- тренировки
+- хронические жалобы
+- привычки
+
+Не сохраняй разовые блюда вроде "съел суп".
+Не сохраняй временные факты без долгосрочной пользы.
+
+Верни строго JSON:
+{
+  "facts": ["факт 1", "факт 2"]
+}
+
+Если фактов нет:
+{
+  "facts": []
+}
+""",
+            input=f"""
+Сообщение пользователя:
+{user_message}
+
+Ответ ассистента:
+{assistant_answer}
+"""
+        )
+
+        try:
+            data = json.loads(response.output_text)
+        except Exception as e:
+            print("MEMORY JSON ERROR:", repr(e), response.output_text)
+            return
+
+        facts = data.get("facts", [])
+
+        for fact in facts:
+            if not fact:
+                continue
+
+            fact = fact.strip()
+
+            if len(fact) < 10:
+                continue
+
+            existing = (
+                supabase.table("user_memory")
+                .select("fact")
+                .eq("telegram_id", telegram_id)
+                .eq("fact", fact)
+                .execute()
+            )
+
+            if existing.data:
+                continue
+
+            supabase.table("user_memory").insert({
+                "telegram_id": telegram_id,
+                "fact": fact
+            }).execute()
+
+    except Exception as e:
+        print("MEMORY EXTRACTION ERROR:", repr(e))
+
+
 @dp.message(Command("start"))
 async def start(message: types.Message):
     telegram_id = message.from_user.id
@@ -78,6 +192,18 @@ async def start(message: types.Message):
     )
 
 
+@dp.message(Command("memory"))
+async def show_memory(message: types.Message):
+    telegram_id = message.from_user.id
+    memory = get_user_memory(telegram_id)
+
+    if not memory:
+        await message.answer("Пока я не сохранил долгосрочных фактов о тебе.")
+        return
+
+    await message.answer(f"Вот что я помню:\n\n{memory}")
+
+
 @dp.message()
 async def analyze_food(message: types.Message):
     telegram_id = message.from_user.id
@@ -94,16 +220,15 @@ async def analyze_food(message: types.Message):
             "content": text
         }).execute()
 
-        history = get_chat_history(telegram_id, limit=10)
-        
+        history = get_chat_history(telegram_id, limit=12)
         memory = get_user_memory(telegram_id)
 
-context_input = [
-    {
-        "role": "system",
-        "content": f"Долговременная память о пользователе:\n{memory}"
-    }
-] + history
+        context_input = [
+            {
+                "role": "system",
+                "content": f"Долговременная память о пользователе:\n{memory or 'Пока нет сохранённых фактов.'}"
+            }
+        ] + history
 
         response = openai_client.responses.create(
             model="gpt-4.1-mini",
@@ -135,6 +260,12 @@ context_input = [
 
         await message.answer(answer)
 
+        extract_and_save_memory(
+            telegram_id=telegram_id,
+            user_message=text,
+            assistant_answer=answer
+        )
+
     except Exception as e:
         print("OPENAI ERROR:", repr(e))
         await message.answer("Не смог сейчас проанализировать сообщение.")
@@ -154,35 +285,3 @@ async def telegram_webhook(request: Request):
     except Exception as e:
         print("WEBHOOK ERROR:", repr(e))
         return {"ok": False, "error": str(e)}
-
-def get_chat_history(telegram_id, limit=10):
-    result = (
-        supabase.table("messages")
-        .select("role, content")
-        .eq("telegram_id", telegram_id)
-        .order("created_at", desc=True)
-        .limit(limit)
-        .execute()
-    )
-
-    rows = result.data or []
-    rows.reverse()
-
-    return rows
-
-def get_user_memory(telegram_id):
-    result = (
-        supabase.table("user_memory")
-        .select("fact")
-        .eq("telegram_id", telegram_id)
-        .order("created_at", desc=True)
-        .limit(20)
-        .execute()
-    )
-
-    facts = result.data or []
-
-    if not facts:
-        return ""
-
-    return "\n".join([f"- {item['fact']}" for item in facts])
