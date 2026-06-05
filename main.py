@@ -209,6 +209,12 @@ async def analyze_food(message: types.Message):
     telegram_id = message.from_user.id
     text = message.text
 
+    if not is_nutrition_related(text):
+    await message.answer(
+        "Я специализируюсь только на вопросах питания, здоровья, сна, тренировок и образа жизни 😊"
+    )
+    return
+
     if not text:
         await message.answer("Пока я умею анализировать только текст. Фото добавим следующим шагом.")
         return
@@ -285,3 +291,39 @@ async def telegram_webhook(request: Request):
     except Exception as e:
         print("WEBHOOK ERROR:", repr(e))
         return {"ok": False, "error": str(e)}
+
+def is_nutrition_related(text: str) -> bool:
+    response = openai_client.responses.create(
+        model="gpt-4.1-mini",
+        instructions="""
+Ты классификатор.
+
+Определи относится ли сообщение к:
+
+- питанию
+- здоровью
+- нутрициологии
+- витаминам
+- минералам
+- БАДам
+- тренировкам
+- восстановлению
+- стрессу
+- сну
+- энергии
+- метаболическому здоровью
+
+Верни строго:
+
+YES
+
+или
+
+NO
+""",
+        input=text
+    )
+
+    result = response.output_text.strip().upper()
+
+    return result == "YES"
