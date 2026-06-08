@@ -1,5 +1,6 @@
 import os
 import json
+import base64
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -93,6 +94,57 @@ def get_user_memory(telegram_id: int):
     return "\n".join([f"- {item['fact']}" for item in facts])
 
 
+def is_nutrition_related(text: str) -> bool:
+    if not text:
+        return True
+
+    try:
+        response = openai_client.responses.create(
+            model="gpt-4.1-mini",
+            instructions="""
+Ты классификатор.
+
+Определи относится ли сообщение к:
+
+- питанию
+- еде
+- продуктам
+- здоровью
+- нутрициологии
+- витаминам
+- минералам
+- БАДам
+- тренировкам
+- восстановлению
+- стрессу
+- сну
+- энергии
+- метаболическому здоровью
+- пищевым привычкам
+- самочувствию после еды
+- снижению веса
+- набору массы
+- анализу блюда
+
+Верни строго одно слово:
+
+YES
+
+или
+
+NO
+""",
+            input=text
+        )
+
+        result = response.output_text.strip().upper()
+        return result == "YES"
+
+    except Exception as e:
+        print("CLASSIFIER ERROR:", repr(e))
+        return True
+
+
 def extract_and_save_memory(telegram_id: int, user_message: str, assistant_answer: str):
     try:
         response = openai_client.responses.create(
@@ -172,6 +224,94 @@ def extract_and_save_memory(telegram_id: int, user_message: str, assistant_answe
         print("MEMORY EXTRACTION ERROR:", repr(e))
 
 
+async def analyze_food_photo(message: types.Message):
+    telegram_id = message.from_user.id
+
+    try:
+        photo = message.photo[-1]
+        file = await bot.get_file(photo.file_id)
+        file_bytes = await bot.download_file(file.file_path)
+
+        image_base64 = base64.b64encode(file_bytes.read()).decode("utf-8")
+
+        memory = get_user_memory(telegram_id)
+        history = get_chat_history(telegram_id, limit=8)
+
+        context_input = [
+            {
+                "role": "system",
+                "content": f"Долговременная память о пользователе:\n{memory or 'Пока нет сохранённых фактов.'}"
+            }
+        ] + history + [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": (
+                            "Проанализируй фото еды. "
+                            "Определи примерный состав блюда, баланс белков, жиров и углеводов, "
+                            "влияние на насыщение, энергию, инсулин и метаболическое здоровье. "
+                            "Если на фото не еда — вежливо скажи, что анализируешь только питание и близкие темы."
+                        )
+                    },
+                    {
+                        "type": "input_image",
+                        "image_url": f"data:image/jpeg;base64,{image_base64}"
+                    }
+                ]
+            }
+        ]
+
+        response = openai_client.responses.create(
+            model="gpt-4.1-mini",
+            instructions=BOT_ROLE,
+            input=context_input,
+            tools=[
+                {
+                    "type": "file_search",
+                    "vector_store_ids": [
+                        OPENAI_VECTOR_STORE_ID
+                    ]
+                }
+            ]
+        )
+
+        answer = response.output_text
+
+        supabase.table("messages").insert({
+            "telegram_id": telegram_id,
+            "role": "user",
+            "content": "[Фото еды]"
+        }).execute()
+
+        supabase.table("messages").insert({
+            "telegram_id": telegram_id,
+            "role": "assistant",
+            "content": answer
+        }).execute()
+
+        supabase.table("meals").insert({
+            "telegram_id": telegram_id,
+            "text": "[Фото еды]",
+            "ai_comment": answer
+        }).execute()
+
+        await message.answer(answer)
+
+        extract_and_save_memory(
+            telegram_id=telegram_id,
+            user_message="[Фото еды]",
+            assistant_answer=answer
+        )
+
+    except Exception as e:
+        print("PHOTO ANALYSIS ERROR:", repr(e))
+        await message.answer(
+            "Не смог проанализировать фото. Попробуй отправить другое изображение или описать еду текстом."
+        )
+
+
 @dp.message(Command("start"))
 async def start(message: types.Message):
     telegram_id = message.from_user.id
@@ -186,9 +326,9 @@ async def start(message: types.Message):
         print("SUPABASE USER ERROR:", repr(e))
 
     await message.answer(
-        "Привет 👋\n\n"
+        "Привет ð\n\n"
         "Я твой AI-нутрициолог.\n"
-        "Отправь мне описание еды, самочувствия или привычки — я помогу разобрать."
+        "Отправь мне описание еды, самочувствия, привычки или фото блюда — я помогу разобрать."
     )
 
 
@@ -204,19 +344,24 @@ async def show_memory(message: types.Message):
     await message.answer(f"Вот что я помню:\n\n{memory}")
 
 
+@dp.message(lambda message: message.photo)
+async def photo_handler(message: types.Message):
+    await analyze_food_photo(message)
+
+
 @dp.message()
 async def analyze_food(message: types.Message):
     telegram_id = message.from_user.id
     text = message.text
 
-    if not is_nutrition_related(text):
-    await message.answer(
-        "Я специализируюсь только на вопросах питания, здоровья, сна, тренировок и образа жизни 😊"
-    )
-    return
-
     if not text:
-        await message.answer("Пока я умею анализировать только текст. Фото добавим следующим шагом.")
+        await message.answer("Пока я умею анализировать только текст и фото еды.")
+        return
+
+    if not is_nutrition_related(text):
+        await message.answer(
+            "Я специализируюсь только на вопросах питания, здоровья, сна, тренировок и образа жизни ð"
+        )
         return
 
     try:
@@ -291,39 +436,3 @@ async def telegram_webhook(request: Request):
     except Exception as e:
         print("WEBHOOK ERROR:", repr(e))
         return {"ok": False, "error": str(e)}
-
-def is_nutrition_related(text: str) -> bool:
-    response = openai_client.responses.create(
-        model="gpt-4.1-mini",
-        instructions="""
-Ты классификатор.
-
-Определи относится ли сообщение к:
-
-- питанию
-- здоровью
-- нутрициологии
-- витаминам
-- минералам
-- БАДам
-- тренировкам
-- восстановлению
-- стрессу
-- сну
-- энергии
-- метаболическому здоровью
-
-Верни строго:
-
-YES
-
-или
-
-NO
-""",
-        input=text
-    )
-
-    result = response.output_text.strip().upper()
-
-    return result == "YES"
