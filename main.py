@@ -76,22 +76,30 @@ def get_chat_history(telegram_id: int, limit: int = 10):
     return rows
 
 
-def get_user_memory(telegram_id: int):
+def get_user_memory_facts(telegram_id: int, limit: int = 20):
     result = (
         supabase.table("user_memory")
         .select("fact")
         .eq("telegram_id", telegram_id)
         .order("created_at", desc=True)
-        .limit(20)
+        .limit(limit)
         .execute()
     )
 
-    facts = result.data or []
+    return [
+        item["fact"]
+        for item in result.data or []
+        if item.get("fact")
+    ]
+
+
+def get_user_memory(telegram_id: int):
+    facts = get_user_memory_facts(telegram_id)
 
     if not facts:
         return ""
 
-    return "\n".join([f"- {item['fact']}" for item in facts])
+    return "\n".join([f"- {fact}" for fact in facts])
 
 
 def save_user_memory_fact(telegram_id: int, fact: str):
@@ -117,6 +125,32 @@ def save_user_memory_fact(telegram_id: int, fact: str):
     }).execute()
 
     return "saved"
+
+
+def delete_user_memory_fact(telegram_id: int, fact: str):
+    fact = (fact or "").strip()
+
+    if not fact:
+        return "empty"
+
+    existing = (
+        supabase.table("user_memory")
+        .select("fact")
+        .eq("telegram_id", telegram_id)
+        .eq("fact", fact)
+        .limit(1)
+        .execute()
+    )
+
+    if not existing.data:
+        return "not_found"
+
+    supabase.table("user_memory").delete().eq(
+        "telegram_id",
+        telegram_id
+    ).eq("fact", fact).execute()
+
+    return "deleted"
 
 
 def is_nutrition_related(text: str) -> bool:
@@ -346,6 +380,7 @@ async def start(message: types.Message):
 "🌍 Переводить составы с английского и других языков на русский\n"
 "💡 Давать персональные рекомендации по питанию и привычкам\n"
 "🧠 Запоминать важные факты через /remember\n"
+"🗑 Удалять факты из памяти через /forget\n"
 "📷 Отправьте фото блюда, упаковки продукта или задайте вопрос о питании — и я помогу разобраться 💚"
     )
 
@@ -378,16 +413,65 @@ async def remember_fact(message: types.Message):
     await message.answer("Запомнил. Посмотреть сохранённое можно через /memory.")
 
 
+@dp.message(Command("forget"))
+async def forget_fact(message: types.Message):
+    telegram_id = message.from_user.id
+    parts = (message.text or "").split(maxsplit=1)
+
+    if len(parts) < 2 or not parts[1].strip():
+        await message.answer(
+            "Напиши номер факта из /memory или точный текст факта.\n\n"
+            "Например: /forget 1"
+        )
+        return
+
+    value = parts[1].strip()
+
+    try:
+        if value.isdigit():
+            facts = get_user_memory_facts(telegram_id)
+            index = int(value)
+
+            if index < 1 or index > len(facts):
+                await message.answer("Не нашёл факт с таким номером. Проверь список через /memory.")
+                return
+
+            fact = facts[index - 1]
+        else:
+            fact = value
+
+        status = delete_user_memory_fact(telegram_id, fact)
+    except Exception as e:
+        print("MANUAL MEMORY DELETE ERROR:", repr(e))
+        await message.answer("Не смог удалить факт из памяти. Попробуй ещё раз.")
+        return
+
+    if status == "not_found":
+        await message.answer("Не нашёл такой факт в памяти.")
+        return
+
+    await message.answer("Удалил факт из памяти.")
+
+
 @dp.message(Command("memory"))
 async def show_memory(message: types.Message):
     telegram_id = message.from_user.id
-    memory = get_user_memory(telegram_id)
+    facts = get_user_memory_facts(telegram_id)
 
-    if not memory:
+    if not facts:
         await message.answer("Пока я не сохранил долгосрочных фактов о тебе.")
         return
 
-    await message.answer(f"Вот что я помню:\n\n{memory}")
+    memory = "\n".join([
+        f"{index}. {fact}"
+        for index, fact in enumerate(facts, start=1)
+    ])
+
+    await message.answer(
+        f"Вот что я помню:\n\n{memory}\n\n"
+        "Чтобы удалить факт, напиши /forget и его номер."
+    )
+
 
 
 @dp.message(lambda message: message.photo)
