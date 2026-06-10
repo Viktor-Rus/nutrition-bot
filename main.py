@@ -369,32 +369,133 @@ async def send_support_direct_message(message: types.Message):
     await send_support_message(message=message, command="send")
 
 
+def build_user_profile(user: types.User):
+    return {
+        "telegram_id": user.id,
+        "name": user.full_name,
+        "username": user.username,
+    }
+
+
+def upsert_user_profile(user: types.User):
+    profile = build_user_profile(user)
+
+    try:
+        supabase.table("users").upsert(profile).execute()
+    except Exception as e:
+        print("SUPABASE USER PROFILE ERROR:", repr(e))
+        supabase.table("users").upsert({
+            "telegram_id": profile["telegram_id"],
+            "name": profile["name"],
+        }).execute()
+
+
 def get_broadcast_recipients():
     recipients = []
     page_size = 1000
     start = 0
 
     while True:
-        result = (
-            supabase.table("users")
-            .select("telegram_id")
-            .range(start, start + page_size - 1)
-            .execute()
-        )
+        try:
+            result = (
+                supabase.table("users")
+                .select("telegram_id, name, username")
+                .range(start, start + page_size - 1)
+                .execute()
+            )
+        except Exception as e:
+            print("BROADCAST RECIPIENTS USERNAME FALLBACK:", repr(e))
+            result = (
+                supabase.table("users")
+                .select("telegram_id, name")
+                .range(start, start + page_size - 1)
+                .execute()
+            )
+
         rows = result.data or []
 
         for row in rows:
             telegram_id = row.get("telegram_id")
 
             if telegram_id:
-                recipients.append(int(telegram_id))
+                recipients.append({
+                    "telegram_id": int(telegram_id),
+                    "name": row.get("name") or "",
+                    "username": row.get("username") or "",
+                })
 
         if len(rows) < page_size:
             break
 
         start += page_size
 
-    return sorted(set(recipients))
+    unique_recipients = {}
+
+    for recipient in recipients:
+        unique_recipients[recipient["telegram_id"]] = recipient
+
+    return [
+        unique_recipients[telegram_id]
+        for telegram_id in sorted(unique_recipients)
+    ]
+
+
+def format_recipient(recipient):
+    name = recipient.get("name") or "Без имени"
+    username = recipient.get("username")
+    username_text = f"@{username}" if username else "username не указан"
+
+    return f"{name} ({username_text}) — {recipient['telegram_id']}"
+
+
+def render_broadcast_text(template: str, recipient):
+    username = recipient.get("username")
+
+    return template.format(
+        name=recipient.get("name") or "друг",
+        username=f"@{username}" if username else "",
+        telegram_id=recipient["telegram_id"],
+    )
+
+
+def format_recipients_preview(recipients, limit: int = 10):
+    lines = [
+        f"- {format_recipient(recipient)}"
+        for recipient in recipients[:limit]
+    ]
+
+    if len(recipients) > limit:
+        lines.append(f"...и ещё {len(recipients) - limit}")
+
+    return "\n".join(lines)
+
+
+def format_delivery_report(delivered, failed, limit: int = 15):
+    report_parts = []
+
+    if delivered:
+        delivered_lines = [
+            f"- {format_recipient(recipient)}"
+            for recipient in delivered[:limit]
+        ]
+
+        if len(delivered) > limit:
+            delivered_lines.append(f"...и ещё {len(delivered) - limit}")
+
+        report_parts.append("Отправлено:\n" + "\n".join(delivered_lines))
+
+    if failed:
+        failed_lines = [
+            f"- {format_recipient(recipient)}"
+            for recipient in failed[:limit]
+        ]
+
+        if len(failed) > limit:
+            failed_lines.append(f"...и ещё {len(failed) - limit}")
+
+        report_parts.append("Ошибки:\n" + "\n".join(failed_lines))
+
+    return "\n\n".join(report_parts)
 
 
 async def create_broadcast_draft(message: types.Message):
@@ -429,6 +530,21 @@ async def create_broadcast_draft(message: types.Message):
         await message.answer("Не нашёл пользователей для рассылки.")
         return
 
+    try:
+        preview_text = render_broadcast_text(broadcast_text, recipients[0])
+    except KeyError as e:
+        await message.answer(
+            f"Неизвестный плейсхолдер: {{{e.args[0]}}}\n\n"
+            "Доступные плейсхолдеры: {name}, {username}, {telegram_id}"
+        )
+        return
+    except ValueError:
+        await message.answer(
+            "Не смог разобрать плейсхолдеры в тексте.\n\n"
+            "Если тебе нужны фигурные скобки как обычный текст, напиши их двойными: {{ и }}."
+        )
+        return
+
     BROADCAST_DRAFTS[str(message.chat.id)] = {
         "text": broadcast_text,
         "created_by": message.from_user.id,
@@ -437,7 +553,11 @@ async def create_broadcast_draft(message: types.Message):
     await message.answer(
         "Черновик рассылки создан.\n\n"
         f"Получателей: {len(recipients)}\n\n"
+        "Получатели:\n"
+        f"{format_recipients_preview(recipients)}\n\n"
+        "Доступные плейсхолдеры: {name}, {username}, {telegram_id}\n\n"
         f"Текст:\n{broadcast_text}\n\n"
+        f"Пример для первого пользователя:\n{preview_text}\n\n"
         "Чтобы отправить, напиши /confirm_broadcast\n"
         "Чтобы отменить, напиши /cancel_broadcast"
     )
@@ -468,18 +588,34 @@ async def confirm_broadcast(message: types.Message):
 
     sent = 0
     failed = 0
+    delivered_recipients = []
+    failed_recipients = []
 
     progress_message = await message.answer(
         f"Начинаю рассылку для {len(recipients)} пользователей..."
     )
 
-    for index, telegram_id in enumerate(recipients, start=1):
+    for index, recipient in enumerate(recipients, start=1):
         try:
-            await bot.send_message(chat_id=telegram_id, text=broadcast_text)
+            personal_text = render_broadcast_text(broadcast_text, recipient)
+            await bot.send_message(
+                chat_id=recipient["telegram_id"],
+                text=personal_text
+            )
             sent += 1
+            delivered_recipients.append(recipient)
+        except KeyError as e:
+            failed += 1
+            failed_recipients.append(recipient)
+            print("BROADCAST TEMPLATE ERROR:", recipient["telegram_id"], repr(e))
+        except ValueError as e:
+            failed += 1
+            failed_recipients.append(recipient)
+            print("BROADCAST TEMPLATE FORMAT ERROR:", recipient["telegram_id"], repr(e))
         except Exception as e:
             failed += 1
-            print("BROADCAST SEND ERROR:", telegram_id, repr(e))
+            failed_recipients.append(recipient)
+            print("BROADCAST SEND ERROR:", recipient["telegram_id"], repr(e))
 
         if index % 25 == 0:
             await asyncio.sleep(1)
@@ -490,7 +626,8 @@ async def confirm_broadcast(message: types.Message):
         "Рассылка завершена.\n\n"
         f"Получателей: {len(recipients)}\n"
         f"Отправлено: {sent}\n"
-        f"Ошибок: {failed}"
+        f"Ошибок: {failed}\n\n"
+        f"{format_delivery_report(delivered_recipients, failed_recipients)}"
     )
 
 
@@ -931,14 +1068,8 @@ async def analyze_food_photo(message: types.Message):
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    telegram_id = message.from_user.id
-    name = message.from_user.full_name
-
     try:
-        supabase.table("users").upsert({
-            "telegram_id": telegram_id,
-            "name": name
-        }).execute()
+        upsert_user_profile(message.from_user)
     except Exception as e:
         print("SUPABASE USER ERROR:", repr(e))
 
