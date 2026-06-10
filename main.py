@@ -25,6 +25,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 OPENAI_VECTOR_STORE_ID = os.getenv("OPENAI_VECTOR_STORE_ID")
+SUPPORT_CHAT_ID = os.getenv("SUPPORT_CHAT_ID")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -43,6 +44,7 @@ BOT_COMMANDS = [
     BotCommand(command="start", description="Запустить бота"),
     BotCommand(command="help", description="Что умеет бот"),
     BotCommand(command="recipes", description="Открыть книгу рецептов"),
+    BotCommand(command="feedback", description="Написать обратную связь"),
     BotCommand(command="memory", description="Показать сохранённые факты"),
     BotCommand(command="remember", description="Добавить факт в память"),
     BotCommand(command="forget", description="Удалить факт из памяти"),
@@ -52,6 +54,7 @@ MENU_RECIPES = "Книга рецептов"
 MENU_MEMORY = "Память"
 MENU_REMEMBER = "Добавить факт"
 MENU_FORGET = "Удалить факт"
+MENU_FEEDBACK = "Обратная связь"
 MENU_HELP = "Помощь"
 MENU_CANCEL = "Отмена"
 
@@ -92,6 +95,7 @@ def main_keyboard():
                 KeyboardButton(text=MENU_FORGET),
             ],
             [
+                KeyboardButton(text=MENU_FEEDBACK),
                 KeyboardButton(text=MENU_HELP),
             ],
         ],
@@ -123,6 +127,7 @@ def help_text():
         "💡 Давать персональные рекомендации по питанию и привычкам\n"
         "🧠 Запоминать важные факты через /remember\n"
         "🗑 Удалять факты из памяти через /forget\n\n"
+        "✉️ Принимать обратную связь через кнопку «Обратная связь»\n\n"
         "Можно просто написать, что ты съел, или отправить фото еды."
     )
 
@@ -264,6 +269,42 @@ async def send_recipe_book(message: types.Message):
     await message.answer(
         "Книга рецептов\n\nВыбери раздел или воспользуйся поиском.",
         reply_markup=recipe_categories_keyboard()
+    )
+
+
+async def send_feedback_to_support(message: types.Message, feedback_text: str):
+    if not SUPPORT_CHAT_ID:
+        await message.answer(
+            "Обратная связь временно недоступна. Попробуй позже.",
+            reply_markup=main_keyboard()
+        )
+        return
+
+    user = message.from_user
+    username = f"@{user.username}" if user.username else "не указан"
+    full_name = user.full_name or "не указано"
+
+    support_message = (
+        "Новое сообщение обратной связи\n\n"
+        f"Пользователь: {full_name}\n"
+        f"Username: {username}\n"
+        f"Telegram ID: {user.id}\n\n"
+        f"Сообщение:\n{feedback_text}"
+    )
+
+    try:
+        await bot.send_message(chat_id=SUPPORT_CHAT_ID, text=support_message)
+    except Exception as e:
+        print("FEEDBACK SEND ERROR:", repr(e))
+        await message.answer(
+            "Не смог отправить сообщение. Попробуй ещё раз позже.",
+            reply_markup=main_keyboard()
+        )
+        return
+
+    await message.answer(
+        "Спасибо! Я передал сообщение разработчику.",
+        reply_markup=main_keyboard()
     )
 
 
@@ -721,6 +762,15 @@ async def recipes_command(message: types.Message):
     await send_recipe_book(message)
 
 
+@dp.message(Command("feedback"))
+async def feedback_command(message: types.Message):
+    PENDING_ACTIONS[message.from_user.id] = "feedback"
+    await message.answer(
+        "Напиши сообщение для разработчика. Я передам его в поддержку.",
+        reply_markup=cancel_keyboard()
+    )
+
+
 @dp.message(Command("remember"))
 async def remember_fact(message: types.Message):
     parts = (message.text or "").split(maxsplit=1)
@@ -806,6 +856,15 @@ async def menu_forget(message: types.Message):
 async def menu_help(message: types.Message):
     PENDING_ACTIONS.pop(message.from_user.id, None)
     await message.answer(help_text(), reply_markup=main_keyboard())
+
+
+@dp.message(lambda message: message.text == MENU_FEEDBACK)
+async def menu_feedback(message: types.Message):
+    PENDING_ACTIONS[message.from_user.id] = "feedback"
+    await message.answer(
+        "Напиши сообщение для разработчика. Я передам его в поддержку.",
+        reply_markup=cancel_keyboard()
+    )
 
 
 @dp.callback_query(lambda callback: callback.data == "recipes:home")
@@ -903,6 +962,10 @@ async def handle_pending_action(message: types.Message):
             f"Нашёл рецепты по запросу «{text}»:",
             reply_markup=recipe_search_results_keyboard(results)
         )
+        return
+
+    if action == "feedback":
+        await send_feedback_to_support(message, text)
         return
 
     await message.answer("Не понял действие. Попробуй ещё раз.", reply_markup=main_keyboard())
