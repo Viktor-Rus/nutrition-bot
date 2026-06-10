@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
+from aiogram.types import BotCommand
 
 from openai import OpenAI
 from supabase import create_client
@@ -30,6 +31,14 @@ supabase = create_client(
 )
 
 app = FastAPI()
+
+
+BOT_COMMANDS = [
+    BotCommand(command="start", description="Запустить бота"),
+    BotCommand(command="memory", description="Показать сохранённые факты"),
+    BotCommand(command="remember", description="Добавить факт в память"),
+    BotCommand(command="forget", description="Удалить факт из памяти"),
+]
 
 
 def load_bot_role():
@@ -58,6 +67,18 @@ BOT_ROLE = load_bot_role()
 @app.get("/")
 async def root():
     return {"status": "bot is running"}
+
+
+async def setup_bot_menu():
+    await bot.set_my_commands(BOT_COMMANDS)
+
+
+@app.on_event("startup")
+async def on_startup():
+    try:
+        await setup_bot_menu()
+    except Exception as e:
+        print("BOT MENU SETUP ERROR:", repr(e))
 
 
 def get_chat_history(telegram_id: int, limit: int = 10):
