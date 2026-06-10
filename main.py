@@ -102,6 +102,28 @@ def get_user_memory(telegram_id: int):
     return "\n".join([f"- {fact}" for fact in facts])
 
 
+def build_user_memory_context(telegram_id: int):
+    memory = get_user_memory(telegram_id)
+
+    if not memory:
+        memory = "Пока нет сохранённых фактов."
+
+    return {
+        "role": "system",
+        "content": (
+            "Долговременная память о пользователе:\n"
+            f"{memory}\n\n"
+            "Эти факты включают информацию, которую пользователь мог сохранить вручную через /remember. "
+            "Обязательно учитывай их при анализе еды и персональных рекомендациях. "
+            "Если сохранённый факт влияет на оценку блюда, ограничения, цели, аллергию, непереносимость, "
+            "режим питания, сон, стресс или тренировки, адаптируй ответ под этот факт. "
+            "Не советуй продукты и действия, которые конфликтуют с сохранёнными ограничениями пользователя. "
+            "Не перечисляй всю память без необходимости, но кратко упоминай релевантный факт, "
+            "если он объясняет рекомендацию."
+        )
+    }
+
+
 def save_user_memory_fact(telegram_id: int, fact: str):
     fact = (fact or "").strip()
 
@@ -279,14 +301,10 @@ async def analyze_food_photo(message: types.Message):
 
         image_base64 = base64.b64encode(file_bytes.read()).decode("utf-8")
 
-        memory = get_user_memory(telegram_id)
         history = get_chat_history(telegram_id, limit=8)
 
         context_input = [
-            {
-                "role": "system",
-                "content": f"Долговременная память о пользователе:\n{memory or 'Пока нет сохранённых фактов.'}"
-            }
+            build_user_memory_context(telegram_id)
         ] + history + [
             {
                 "role": "user",
@@ -469,7 +487,8 @@ async def show_memory(message: types.Message):
 
     await message.answer(
         f"Вот что я помню:\n\n{memory}\n\n"
-        "Чтобы удалить факт, напиши /forget и его номер."
+        "Чтобы удалить факт, напиши /forget и его номер.\n"
+        "Чтобы добавить факт, напиши /remember и сам факт."
     )
 
 
@@ -502,13 +521,9 @@ async def analyze_food(message: types.Message):
         }).execute()
 
         history = get_chat_history(telegram_id, limit=12)
-        memory = get_user_memory(telegram_id)
 
         context_input = [
-            {
-                "role": "system",
-                "content": f"Долговременная память о пользователе:\n{memory or 'Пока нет сохранённых фактов.'}"
-            }
+            build_user_memory_context(telegram_id)
         ] + history
 
         response = openai_client.responses.create(
