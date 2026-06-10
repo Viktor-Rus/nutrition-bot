@@ -94,6 +94,31 @@ def get_user_memory(telegram_id: int):
     return "\n".join([f"- {item['fact']}" for item in facts])
 
 
+def save_user_memory_fact(telegram_id: int, fact: str):
+    fact = (fact or "").strip()
+
+    if not fact:
+        return "empty"
+
+    existing = (
+        supabase.table("user_memory")
+        .select("fact")
+        .eq("telegram_id", telegram_id)
+        .eq("fact", fact)
+        .execute()
+    )
+
+    if existing.data:
+        return "duplicate"
+
+    supabase.table("user_memory").insert({
+        "telegram_id": telegram_id,
+        "fact": fact
+    }).execute()
+
+    return "saved"
+
+
 def is_nutrition_related(text: str) -> bool:
     if not text:
         return True
@@ -204,21 +229,7 @@ def extract_and_save_memory(telegram_id: int, user_message: str, assistant_answe
             if len(fact) < 10:
                 continue
 
-            existing = (
-                supabase.table("user_memory")
-                .select("fact")
-                .eq("telegram_id", telegram_id)
-                .eq("fact", fact)
-                .execute()
-            )
-
-            if existing.data:
-                continue
-
-            supabase.table("user_memory").insert({
-                "telegram_id": telegram_id,
-                "fact": fact
-            }).execute()
+            save_user_memory_fact(telegram_id, fact)
 
     except Exception as e:
         print("MEMORY EXTRACTION ERROR:", repr(e))
@@ -334,8 +345,37 @@ async def start(message: types.Message):
 "📦 Разбирать состав продуктов по фото упаковки\n"
 "🌍 Переводить составы с английского и других языков на русский\n"
 "💡 Давать персональные рекомендации по питанию и привычкам\n"
+"🧠 Запоминать важные факты через /remember\n"
 "📷 Отправьте фото блюда, упаковки продукта или задайте вопрос о питании — и я помогу разобраться 💚"
     )
+
+
+@dp.message(Command("remember"))
+async def remember_fact(message: types.Message):
+    telegram_id = message.from_user.id
+    parts = (message.text or "").split(maxsplit=1)
+
+    if len(parts) < 2 or not parts[1].strip():
+        await message.answer(
+            "Напиши факт после команды.\n\n"
+            "Например: /remember Я не ем молочные продукты"
+        )
+        return
+
+    fact = parts[1].strip()
+
+    try:
+        status = save_user_memory_fact(telegram_id, fact)
+    except Exception as e:
+        print("MANUAL MEMORY SAVE ERROR:", repr(e))
+        await message.answer("Не смог сохранить факт в память. Попробуй ещё раз.")
+        return
+
+    if status == "duplicate":
+        await message.answer("Этот факт уже есть в моей памяти.")
+        return
+
+    await message.answer("Запомнил. Посмотреть сохранённое можно через /memory.")
 
 
 @dp.message(Command("memory"))
