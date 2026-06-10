@@ -308,6 +308,51 @@ async def send_feedback_to_support(message: types.Message, feedback_text: str):
     )
 
 
+def is_support_chat(chat_id: int):
+    return SUPPORT_CHAT_ID and str(chat_id) == str(SUPPORT_CHAT_ID)
+
+
+async def send_support_reply(message: types.Message):
+    if not is_support_chat(message.chat.id):
+        await message.answer("Эта команда доступна только в чате поддержки.")
+        return
+
+    parts = (message.text or "").split(maxsplit=2)
+
+    if len(parts) < 3:
+        await message.answer(
+            "Формат ответа:\n\n"
+            "/reply TELEGRAM_ID текст ответа\n\n"
+            "Например: /reply 367204483 Спасибо за сообщение!"
+        )
+        return
+
+    user_id_text = parts[1].strip()
+    reply_text = parts[2].strip()
+
+    if not user_id_text.isdigit() or not reply_text:
+        await message.answer(
+            "Не понял ID пользователя или текст ответа.\n\n"
+            "Пример: /reply 367204483 Спасибо за сообщение!"
+        )
+        return
+
+    try:
+        await bot.send_message(
+            chat_id=int(user_id_text),
+            text=f"Ответ поддержки:\n\n{reply_text}"
+        )
+    except Exception as e:
+        print("SUPPORT REPLY ERROR:", repr(e))
+        await message.answer(
+            "Не смог отправить ответ пользователю. "
+            "Проверь Telegram ID и что пользователь уже писал боту."
+        )
+        return
+
+    await message.answer("Ответ отправлен пользователю.")
+
+
 @app.get("/")
 async def root():
     return {"status": "bot is running"}
@@ -769,6 +814,11 @@ async def feedback_command(message: types.Message):
         "Напиши сообщение для разработчика. Я передам его в поддержку.",
         reply_markup=cancel_keyboard()
     )
+
+
+@dp.message(Command("reply"))
+async def reply_command(message: types.Message):
+    await send_support_reply(message)
 
 
 @dp.message(Command("remember"))
