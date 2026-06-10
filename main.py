@@ -6,7 +6,13 @@ from fastapi import FastAPI, Request
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from aiogram.types import BotCommand, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import (
+    BotCommand,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
 
 from openai import OpenAI
 from supabase import create_client
@@ -35,11 +41,13 @@ app = FastAPI()
 BOT_COMMANDS = [
     BotCommand(command="start", description="Запустить бота"),
     BotCommand(command="help", description="Что умеет бот"),
+    BotCommand(command="recipes", description="Открыть книгу рецептов"),
     BotCommand(command="memory", description="Показать сохранённые факты"),
     BotCommand(command="remember", description="Добавить факт в память"),
     BotCommand(command="forget", description="Удалить факт из памяти"),
 ]
 
+MENU_RECIPES = "Книга рецептов"
 MENU_MEMORY = "Память"
 MENU_REMEMBER = "Добавить факт"
 MENU_FORGET = "Удалить факт"
@@ -47,6 +55,262 @@ MENU_HELP = "Помощь"
 MENU_CANCEL = "Отмена"
 
 PENDING_ACTIONS = {}
+
+RECIPE_CATEGORIES = [
+    ("eggs", "Яйца"),
+    ("bakery", "Выпечка"),
+    ("meat", "Мясо"),
+    ("poultry", "Птица"),
+    ("seafood", "Морепродукты"),
+    ("fish", "Рыба"),
+    ("soups", "Супы"),
+    ("salads", "Салаты"),
+    ("vegetarian", "Овощи и бобовые"),
+    ("desserts", "Десерты"),
+]
+
+RECIPES = {
+    "egg_shakshuka": {
+        "category": "eggs",
+        "title": "Шакшука с овощами",
+        "time": "20 минут",
+        "ingredients": ["яйца", "томаты", "болгарский перец", "лук", "паприка", "зелень"],
+        "steps": [
+            "Обжарь лук и перец 5 минут.",
+            "Добавь томаты, паприку и туши до густого соуса.",
+            "Сделай углубления, вбей яйца и готовь под крышкой 5-7 минут.",
+        ],
+        "tags": ["завтрак", "белок", "овощи"],
+    },
+    "egg_omelet_spinach": {
+        "category": "eggs",
+        "title": "Омлет со шпинатом и сыром",
+        "time": "12 минут",
+        "ingredients": ["яйца", "шпинат", "сыр", "оливковое масло", "зелень"],
+        "steps": [
+            "Слегка припусти шпинат на сковороде.",
+            "Влей взбитые яйца, добавь сыр и готовь под крышкой.",
+            "Подавай с овощами или листовым салатом.",
+        ],
+        "tags": ["завтрак", "быстро", "белок"],
+    },
+    "bakery_banana_oats": {
+        "category": "bakery",
+        "title": "Овсяно-банановые маффины",
+        "time": "30 минут",
+        "ingredients": ["овсяные хлопья", "банан", "яйцо", "корица", "разрыхлитель"],
+        "steps": [
+            "Разомни банан и смешай с яйцом.",
+            "Добавь овсянку, корицу и разрыхлитель.",
+            "Разложи по формам и выпекай 20 минут при 180 градусах.",
+        ],
+        "tags": ["выпечка", "без сахара", "перекус"],
+    },
+    "bakery_cottage_pancakes": {
+        "category": "bakery",
+        "title": "Творожные панкейки",
+        "time": "18 минут",
+        "ingredients": ["творог", "яйцо", "рисовая мука", "йогурт", "ягоды"],
+        "steps": [
+            "Смешай творог, яйцо и муку до густого теста.",
+            "Жарь небольшие панкейки на сухой сковороде.",
+            "Подавай с йогуртом и ягодами.",
+        ],
+        "tags": ["завтрак", "белок", "выпечка"],
+    },
+    "meat_beef_bowl": {
+        "category": "meat",
+        "title": "Боул с говядиной и овощами",
+        "time": "25 минут",
+        "ingredients": ["говядина", "гречка", "огурец", "помидор", "зелень", "оливковое масло"],
+        "steps": [
+            "Обжарь тонкие полоски говядины до готовности.",
+            "Собери боул из гречки, овощей и мяса.",
+            "Заправь оливковым маслом и зеленью.",
+        ],
+        "tags": ["обед", "белок", "сытно"],
+    },
+    "meat_turkey_chili": {
+        "category": "meat",
+        "title": "Чили с фаршем и фасолью",
+        "time": "35 минут",
+        "ingredients": ["фарш", "фасоль", "томаты", "лук", "перец", "специи"],
+        "steps": [
+            "Обжарь лук, перец и фарш.",
+            "Добавь томаты, фасоль и специи.",
+            "Туши 20 минут до густой текстуры.",
+        ],
+        "tags": ["ужин", "белок", "бобовые"],
+    },
+    "poultry_chicken_salad": {
+        "category": "poultry",
+        "title": "Куриный салат с авокадо",
+        "time": "20 минут",
+        "ingredients": ["куриная грудка", "авокадо", "листья салата", "огурец", "лимон"],
+        "steps": [
+            "Отвари или обжарь курицу и нарежь ломтиками.",
+            "Смешай салат, огурец и авокадо.",
+            "Добавь курицу, лимонный сок и немного масла.",
+        ],
+        "tags": ["салат", "белок", "низкоуглеводно"],
+    },
+    "poultry_turkey_cutlets": {
+        "category": "poultry",
+        "title": "Котлеты из индейки с кабачком",
+        "time": "30 минут",
+        "ingredients": ["фарш индейки", "кабачок", "яйцо", "лук", "зелень"],
+        "steps": [
+            "Натри кабачок и отожми лишнюю влагу.",
+            "Смешай с фаршем, яйцом, луком и зеленью.",
+            "Сформируй котлеты и запеки или обжарь до готовности.",
+        ],
+        "tags": ["ужин", "белок", "легко"],
+    },
+    "seafood_shrimp_broccoli": {
+        "category": "seafood",
+        "title": "Креветки с брокколи",
+        "time": "15 минут",
+        "ingredients": ["креветки", "брокколи", "чеснок", "лимон", "оливковое масло"],
+        "steps": [
+            "Брокколи припусти 3-4 минуты.",
+            "Обжарь чеснок и креветки до розового цвета.",
+            "Смешай с брокколи и добавь лимонный сок.",
+        ],
+        "tags": ["быстро", "белок", "морепродукты"],
+    },
+    "seafood_mussels_tomato": {
+        "category": "seafood",
+        "title": "Мидии в томатном соусе",
+        "time": "20 минут",
+        "ingredients": ["мидии", "томаты", "чеснок", "лук", "зелень"],
+        "steps": [
+            "Обжарь лук и чеснок.",
+            "Добавь томаты и туши 7 минут.",
+            "Добавь мидии и готовь под крышкой до раскрытия.",
+        ],
+        "tags": ["ужин", "морепродукты", "соус"],
+    },
+    "fish_salmon_asparagus": {
+        "category": "fish",
+        "title": "Лосось со спаржей",
+        "time": "25 минут",
+        "ingredients": ["лосось", "спаржа", "лимон", "оливковое масло", "укроп"],
+        "steps": [
+            "Выложи лосось и спаржу на противень.",
+            "Добавь масло, лимон и укроп.",
+            "Запекай 15-18 минут при 190 градусах.",
+        ],
+        "tags": ["омега-3", "ужин", "рыба"],
+    },
+    "fish_cod_vegetables": {
+        "category": "fish",
+        "title": "Треска с овощами",
+        "time": "25 минут",
+        "ingredients": ["треска", "кабачок", "перец", "томаты", "лимон"],
+        "steps": [
+            "Нарежь овощи и выложи в форму.",
+            "Сверху положи треску, добавь лимон и специи.",
+            "Запекай 20 минут при 180 градусах.",
+        ],
+        "tags": ["легко", "рыба", "ужин"],
+    },
+    "soups_lentil": {
+        "category": "soups",
+        "title": "Чечевичный суп",
+        "time": "35 минут",
+        "ingredients": ["красная чечевица", "морковь", "лук", "томаты", "зира"],
+        "steps": [
+            "Обжарь лук и морковь.",
+            "Добавь чечевицу, томаты и воду.",
+            "Вари 20 минут, затем пробей блендером по желанию.",
+        ],
+        "tags": ["суп", "бобовые", "сытно"],
+    },
+    "soups_chicken": {
+        "category": "soups",
+        "title": "Куриный суп с овощами",
+        "time": "40 минут",
+        "ingredients": ["курица", "морковь", "сельдерей", "лук", "зелень"],
+        "steps": [
+            "Свари курицу до мягкости.",
+            "Добавь овощи и вари ещё 15 минут.",
+            "Подавай с зеленью.",
+        ],
+        "tags": ["суп", "белок", "восстановление"],
+    },
+    "salad_greek": {
+        "category": "salads",
+        "title": "Греческий салат",
+        "time": "10 минут",
+        "ingredients": ["огурец", "помидор", "перец", "фета", "оливки", "оливковое масло"],
+        "steps": [
+            "Крупно нарежь овощи.",
+            "Добавь фету и оливки.",
+            "Заправь маслом и травами.",
+        ],
+        "tags": ["салат", "быстро", "овощи"],
+    },
+    "salad_tuna": {
+        "category": "salads",
+        "title": "Салат с тунцом и фасолью",
+        "time": "12 минут",
+        "ingredients": ["тунец", "фасоль", "огурец", "листья салата", "лимон"],
+        "steps": [
+            "Смешай салат, огурец и фасоль.",
+            "Добавь тунец.",
+            "Заправь лимонным соком и маслом.",
+        ],
+        "tags": ["салат", "белок", "быстро"],
+    },
+    "veg_chickpea_curry": {
+        "category": "vegetarian",
+        "title": "Карри с нутом",
+        "time": "30 минут",
+        "ingredients": ["нут", "томаты", "кокосовое молоко", "шпинат", "карри"],
+        "steps": [
+            "Прогрей специи на сковороде.",
+            "Добавь нут, томаты и кокосовое молоко.",
+            "Туши 15 минут, в конце добавь шпинат.",
+        ],
+        "tags": ["вегетарианское", "бобовые", "ужин"],
+    },
+    "veg_tofu_bowl": {
+        "category": "vegetarian",
+        "title": "Боул с тофу",
+        "time": "25 минут",
+        "ingredients": ["тофу", "рис", "брокколи", "морковь", "соевый соус"],
+        "steps": [
+            "Обжарь кубики тофу до корочки.",
+            "Приготовь рис и овощи.",
+            "Собери боул и добавь немного соевого соуса.",
+        ],
+        "tags": ["веганское", "белок", "боул"],
+    },
+    "dessert_chia": {
+        "category": "desserts",
+        "title": "Чиа-пудинг с ягодами",
+        "time": "10 минут + охлаждение",
+        "ingredients": ["семена чиа", "йогурт или растительное молоко", "ягоды", "корица"],
+        "steps": [
+            "Смешай чиа с йогуртом или молоком.",
+            "Оставь в холодильнике на 2 часа или на ночь.",
+            "Добавь ягоды и корицу перед подачей.",
+        ],
+        "tags": ["десерт", "перекус", "без выпечки"],
+    },
+    "dessert_baked_apple": {
+        "category": "desserts",
+        "title": "Запечённое яблоко с орехами",
+        "time": "25 минут",
+        "ingredients": ["яблоко", "грецкие орехи", "корица", "йогурт"],
+        "steps": [
+            "Удали сердцевину яблока.",
+            "Добавь орехи и корицу.",
+            "Запекай 20 минут и подавай с йогуртом.",
+        ],
+        "tags": ["десерт", "фрукты", "орехи"],
+    },
+}
 
 
 def load_bot_role():
@@ -76,11 +340,14 @@ def main_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[
             [
+                KeyboardButton(text=MENU_RECIPES),
                 KeyboardButton(text=MENU_MEMORY),
-                KeyboardButton(text=MENU_REMEMBER),
             ],
             [
+                KeyboardButton(text=MENU_REMEMBER),
                 KeyboardButton(text=MENU_FORGET),
+            ],
+            [
                 KeyboardButton(text=MENU_HELP),
             ],
         ],
@@ -108,10 +375,151 @@ def help_text():
         "🥗 Анализировать блюда и продукты по описанию\n"
         "📦 Разбирать состав продуктов по фото упаковки\n"
         "🌍 Переводить составы с английского и других языков на русский\n"
+        "📚 Показывать книгу рецептов по разделам\n"
         "💡 Давать персональные рекомендации по питанию и привычкам\n"
         "🧠 Запоминать важные факты через /remember\n"
         "🗑 Удалять факты из памяти через /forget\n\n"
         "Можно просто написать, что ты съел, или отправить фото еды."
+    )
+
+
+def get_category_title(category_id: str):
+    for current_id, title in RECIPE_CATEGORIES:
+        if current_id == category_id:
+            return title
+    return "Рецепты"
+
+
+def recipe_categories_keyboard():
+    rows = []
+
+    for index in range(0, len(RECIPE_CATEGORIES), 2):
+        row = []
+        for category_id, title in RECIPE_CATEGORIES[index:index + 2]:
+            row.append(
+                InlineKeyboardButton(
+                    text=title,
+                    callback_data=f"recipes:cat:{category_id}"
+                )
+            )
+        rows.append(row)
+
+    rows.append([
+        InlineKeyboardButton(text="Поиск рецепта", callback_data="recipes:search")
+    ])
+
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def recipes_by_category(category_id: str):
+    return [
+        (recipe_id, recipe)
+        for recipe_id, recipe in RECIPES.items()
+        if recipe["category"] == category_id
+    ]
+
+
+def recipe_list_keyboard(category_id: str):
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=recipe["title"],
+                callback_data=f"recipes:view:{recipe_id}"
+            )
+        ]
+        for recipe_id, recipe in recipes_by_category(category_id)
+    ]
+
+    rows.append([
+        InlineKeyboardButton(text="Назад к разделам", callback_data="recipes:home"),
+        InlineKeyboardButton(text="Поиск", callback_data="recipes:search"),
+    ])
+
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def recipe_detail_keyboard(recipe_id: str):
+    category_id = RECIPES[recipe_id]["category"]
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Назад к разделу",
+                    callback_data=f"recipes:cat:{category_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(text="Все разделы", callback_data="recipes:home"),
+                InlineKeyboardButton(text="Поиск", callback_data="recipes:search"),
+            ],
+        ]
+    )
+
+
+def recipe_search_results_keyboard(results):
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=recipe["title"],
+                callback_data=f"recipes:view:{recipe_id}"
+            )
+        ]
+        for recipe_id, recipe in results
+    ]
+
+    rows.append([
+        InlineKeyboardButton(text="Все разделы", callback_data="recipes:home"),
+        InlineKeyboardButton(text="Новый поиск", callback_data="recipes:search"),
+    ])
+
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def format_recipe(recipe):
+    ingredients = "\n".join([f"- {item}" for item in recipe["ingredients"]])
+    steps = "\n".join([
+        f"{index}. {step}"
+        for index, step in enumerate(recipe["steps"], start=1)
+    ])
+    tags = ", ".join(recipe["tags"])
+
+    return (
+        f"{recipe['title']}\n\n"
+        f"Время: {recipe['time']}\n"
+        f"Раздел: {get_category_title(recipe['category'])}\n"
+        f"Теги: {tags}\n\n"
+        f"Ингредиенты:\n{ingredients}\n\n"
+        f"Как готовить:\n{steps}"
+    )
+
+
+def search_recipes(query: str, limit: int = 10):
+    normalized_query = (query or "").lower().replace("ё", "е").strip()
+
+    if not normalized_query:
+        return []
+
+    results = []
+
+    for recipe_id, recipe in RECIPES.items():
+        searchable_text = " ".join([
+            recipe["title"],
+            get_category_title(recipe["category"]),
+            " ".join(recipe["ingredients"]),
+            " ".join(recipe["tags"]),
+        ]).lower().replace("ё", "е")
+
+        if normalized_query in searchable_text:
+            results.append((recipe_id, recipe))
+
+    return results[:limit]
+
+
+async def send_recipe_book(message: types.Message):
+    await message.answer(
+        "Книга рецептов\n\nВыбери раздел или воспользуйся поиском.",
+        reply_markup=recipe_categories_keyboard()
     )
 
 
@@ -563,6 +971,12 @@ async def help_command(message: types.Message):
     await message.answer(help_text(), reply_markup=main_keyboard())
 
 
+@dp.message(Command("recipes"))
+async def recipes_command(message: types.Message):
+    PENDING_ACTIONS.pop(message.from_user.id, None)
+    await send_recipe_book(message)
+
+
 @dp.message(Command("remember"))
 async def remember_fact(message: types.Message):
     parts = (message.text or "").split(maxsplit=1)
@@ -595,6 +1009,12 @@ async def forget_fact(message: types.Message):
     value = parts[1].strip()
 
     await delete_memory_from_text(message, value)
+
+
+@dp.message(lambda message: message.text == MENU_RECIPES)
+async def menu_recipes(message: types.Message):
+    PENDING_ACTIONS.pop(message.from_user.id, None)
+    await send_recipe_book(message)
 
 
 @dp.message(lambda message: message.text == MENU_MEMORY)
@@ -644,6 +1064,67 @@ async def menu_help(message: types.Message):
     await message.answer(help_text(), reply_markup=main_keyboard())
 
 
+@dp.callback_query(lambda callback: callback.data == "recipes:home")
+async def recipes_home_callback(callback: types.CallbackQuery):
+    await callback.answer()
+    await callback.message.edit_text(
+        "Книга рецептов\n\nВыбери раздел или воспользуйся поиском.",
+        reply_markup=recipe_categories_keyboard()
+    )
+
+
+@dp.callback_query(lambda callback: callback.data == "recipes:search")
+async def recipes_search_callback(callback: types.CallbackQuery):
+    PENDING_ACTIONS[callback.from_user.id] = "recipe_search"
+    await callback.answer()
+    await callback.message.answer(
+        "Что ищем? Напиши название, ингредиент или тег.\n\n"
+        "Например: креветки, завтрак, суп, тофу",
+        reply_markup=main_keyboard()
+    )
+
+
+@dp.callback_query(lambda callback: (callback.data or "").startswith("recipes:cat:"))
+async def recipes_category_callback(callback: types.CallbackQuery):
+    category_id = callback.data.split(":", maxsplit=2)[2]
+    title = get_category_title(category_id)
+    recipes = recipes_by_category(category_id)
+
+    await callback.answer()
+
+    if not recipes:
+        await callback.message.edit_text(
+            f"{title}\n\nВ этом разделе пока нет рецептов.",
+            reply_markup=recipe_categories_keyboard()
+        )
+        return
+
+    await callback.message.edit_text(
+        f"{title}\n\nВыбери рецепт:",
+        reply_markup=recipe_list_keyboard(category_id)
+    )
+
+
+@dp.callback_query(lambda callback: (callback.data or "").startswith("recipes:view:"))
+async def recipes_view_callback(callback: types.CallbackQuery):
+    recipe_id = callback.data.split(":", maxsplit=2)[2]
+    recipe = RECIPES.get(recipe_id)
+
+    await callback.answer()
+
+    if not recipe:
+        await callback.message.edit_text(
+            "Не нашёл этот рецепт. Вернись к разделам и выбери другой.",
+            reply_markup=recipe_categories_keyboard()
+        )
+        return
+
+    await callback.message.edit_text(
+        format_recipe(recipe),
+        reply_markup=recipe_detail_keyboard(recipe_id)
+    )
+
+
 @dp.message(lambda message: message.text == MENU_CANCEL)
 async def menu_cancel(message: types.Message):
     PENDING_ACTIONS.pop(message.from_user.id, None)
@@ -661,6 +1142,23 @@ async def handle_pending_action(message: types.Message):
 
     if action == "forget":
         await delete_memory_from_text(message, text)
+        return
+
+    if action == "recipe_search":
+        results = search_recipes(text)
+
+        if not results:
+            await message.answer(
+                "Не нашёл рецепты по такому запросу. Попробуй другое слово или открой разделы.",
+                reply_markup=main_keyboard()
+            )
+            await send_recipe_book(message)
+            return
+
+        await message.answer(
+            f"Нашёл рецепты по запросу «{text}»:",
+            reply_markup=recipe_search_results_keyboard(results)
+        )
         return
 
     await message.answer("Не понял действие. Попробуй ещё раз.", reply_markup=main_keyboard())
