@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from aiogram.types import BotCommand
+from aiogram.types import BotCommand, KeyboardButton, ReplyKeyboardMarkup
 
 from openai import OpenAI
 from supabase import create_client
@@ -35,10 +35,19 @@ app = FastAPI()
 
 BOT_COMMANDS = [
     BotCommand(command="start", description="Запустить бота"),
+    BotCommand(command="help", description="Что умеет бот"),
     BotCommand(command="memory", description="Показать сохранённые факты"),
     BotCommand(command="remember", description="Добавить факт в память"),
     BotCommand(command="forget", description="Удалить факт из памяти"),
 ]
+
+MENU_MEMORY = "Память"
+MENU_REMEMBER = "Добавить факт"
+MENU_FORGET = "Удалить факт"
+MENU_HELP = "Помощь"
+MENU_CANCEL = "Отмена"
+
+PENDING_ACTIONS = {}
 
 
 def load_bot_role():
@@ -62,6 +71,49 @@ def load_bot_role():
 
 
 BOT_ROLE = load_bot_role()
+
+
+def main_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text=MENU_MEMORY),
+                KeyboardButton(text=MENU_REMEMBER),
+            ],
+            [
+                KeyboardButton(text=MENU_FORGET),
+                KeyboardButton(text=MENU_HELP),
+            ],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Опиши еду или выбери действие",
+    )
+
+
+def cancel_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text=MENU_CANCEL),
+            ],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Отправь значение или нажми Отмена",
+    )
+
+
+def help_text():
+    return (
+        "Что я умею:\n\n"
+        "📸 Анализировать еду по фото\n"
+        "🥗 Анализировать блюда и продукты по описанию\n"
+        "📦 Разбирать состав продуктов по фото упаковки\n"
+        "🌍 Переводить составы с английского и других языков на русский\n"
+        "💡 Давать персональные рекомендации по питанию и привычкам\n"
+        "🧠 Запоминать важные факты через /remember\n"
+        "🗑 Удалять факты из памяти через /forget\n\n"
+        "Можно просто написать, что ты съел, или отправить фото еды."
+    )
 
 
 @app.get("/")
@@ -197,6 +249,65 @@ def delete_user_memory_fact(telegram_id: int, fact: str):
     ).eq("fact", fact).execute()
 
     return "deleted"
+
+
+async def save_memory_from_text(message: types.Message, fact: str):
+    telegram_id = message.from_user.id
+
+    try:
+        status = save_user_memory_fact(telegram_id, fact)
+    except Exception as e:
+        print("MANUAL MEMORY SAVE ERROR:", repr(e))
+        await message.answer(
+            "Не смог сохранить факт в память. Попробуй ещё раз.",
+            reply_markup=main_keyboard()
+        )
+        return
+
+    if status == "duplicate":
+        await message.answer("Этот факт уже есть в моей памяти.", reply_markup=main_keyboard())
+        return
+
+    await message.answer(
+        "Запомнил. Посмотреть сохранённое можно через кнопку «Память» или /memory.",
+        reply_markup=main_keyboard()
+    )
+
+
+async def delete_memory_from_text(message: types.Message, value: str):
+    telegram_id = message.from_user.id
+    value = (value or "").strip()
+
+    try:
+        if value.isdigit():
+            facts = get_user_memory_facts(telegram_id)
+            index = int(value)
+
+            if index < 1 or index > len(facts):
+                await message.answer(
+                    "Не нашёл факт с таким номером. Проверь список через кнопку «Память».",
+                    reply_markup=main_keyboard()
+                )
+                return
+
+            fact = facts[index - 1]
+        else:
+            fact = value
+
+        status = delete_user_memory_fact(telegram_id, fact)
+    except Exception as e:
+        print("MANUAL MEMORY DELETE ERROR:", repr(e))
+        await message.answer(
+            "Не смог удалить факт из памяти. Попробуй ещё раз.",
+            reply_markup=main_keyboard()
+        )
+        return
+
+    if status == "not_found":
+        await message.answer("Не нашёл такой факт в памяти.", reply_markup=main_keyboard())
+        return
+
+    await message.answer("Удалил факт из памяти.", reply_markup=main_keyboard())
 
 
 def is_nutrition_related(text: str, history=None) -> bool:
@@ -481,7 +592,7 @@ async def analyze_food_photo(message: types.Message):
             "ai_comment": answer
         }).execute()
 
-        await message.answer(answer)
+        await message.answer(answer, reply_markup=main_keyboard())
 
         extract_and_save_memory(
             telegram_id=telegram_id,
@@ -492,7 +603,8 @@ async def analyze_food_photo(message: types.Message):
     except Exception as e:
         print("PHOTO ANALYSIS ERROR:", repr(e))
         await message.answer(
-            "Не смог проанализировать фото. Попробуй отправить другое изображение или описать еду текстом."
+            "Не смог проанализировать фото. Попробуй отправить другое изображение или описать еду текстом.",
+            reply_markup=main_keyboard()
         )
 
 
@@ -511,85 +623,119 @@ async def start(message: types.Message):
 
     await message.answer(
         "👋 Добро пожаловать в MealAdvisor!\n\n"
-"Я — AI-нутрициолог, который помогает разбираться в питании и делать более осознанный выбор.\n\n"
-"Что я умею:\n\n"
-"📸 Анализировать еду по фото\n"
-"🥗 Анализировать блюда и продукты по описанию\n"
-"📦 Разбирать состав продуктов по фото упаковки\n"
-"🌍 Переводить составы с английского и других языков на русский\n"
-"💡 Давать персональные рекомендации по питанию и привычкам\n"
-"🧠 Запоминать важные факты через /remember\n"
-"🗑 Удалять факты из памяти через /forget\n"
-"📷 Отправьте фото блюда, упаковки продукта или задайте вопрос о питании — и я помогу разобраться 💚"
+        "Я — AI-нутрициолог, который помогает разбираться в питании "
+        "и делать более осознанный выбор.\n\n"
+        f"{help_text()}",
+        reply_markup=main_keyboard()
     )
+
+
+@dp.message(Command("help"))
+async def help_command(message: types.Message):
+    await message.answer(help_text(), reply_markup=main_keyboard())
 
 
 @dp.message(Command("remember"))
 async def remember_fact(message: types.Message):
-    telegram_id = message.from_user.id
     parts = (message.text or "").split(maxsplit=1)
 
     if len(parts) < 2 or not parts[1].strip():
         await message.answer(
             "Напиши факт после команды.\n\n"
-            "Например: /remember Я не ем молочные продукты"
+            "Например: /remember Я не ем молочные продукты",
+            reply_markup=main_keyboard()
         )
         return
 
     fact = parts[1].strip()
 
-    try:
-        status = save_user_memory_fact(telegram_id, fact)
-    except Exception as e:
-        print("MANUAL MEMORY SAVE ERROR:", repr(e))
-        await message.answer("Не смог сохранить факт в память. Попробуй ещё раз.")
-        return
-
-    if status == "duplicate":
-        await message.answer("Этот факт уже есть в моей памяти.")
-        return
-
-    await message.answer("Запомнил. Посмотреть сохранённое можно через /memory.")
+    await save_memory_from_text(message, fact)
 
 
 @dp.message(Command("forget"))
 async def forget_fact(message: types.Message):
-    telegram_id = message.from_user.id
     parts = (message.text or "").split(maxsplit=1)
 
     if len(parts) < 2 or not parts[1].strip():
         await message.answer(
             "Напиши номер факта из /memory или точный текст факта.\n\n"
-            "Например: /forget 1"
+            "Например: /forget 1",
+            reply_markup=main_keyboard()
         )
         return
 
     value = parts[1].strip()
 
-    try:
-        if value.isdigit():
-            facts = get_user_memory_facts(telegram_id)
-            index = int(value)
+    await delete_memory_from_text(message, value)
 
-            if index < 1 or index > len(facts):
-                await message.answer("Не нашёл факт с таким номером. Проверь список через /memory.")
-                return
 
-            fact = facts[index - 1]
-        else:
-            fact = value
+@dp.message(lambda message: message.text == MENU_MEMORY)
+async def menu_memory(message: types.Message):
+    PENDING_ACTIONS.pop(message.from_user.id, None)
+    await show_memory(message)
 
-        status = delete_user_memory_fact(telegram_id, fact)
-    except Exception as e:
-        print("MANUAL MEMORY DELETE ERROR:", repr(e))
-        await message.answer("Не смог удалить факт из памяти. Попробуй ещё раз.")
+
+@dp.message(lambda message: message.text == MENU_REMEMBER)
+async def menu_remember(message: types.Message):
+    PENDING_ACTIONS[message.from_user.id] = "remember"
+
+    await message.answer(
+        "Отправь факт, который нужно запомнить.\n\n"
+        "Например: Я не ем молочные продукты",
+        reply_markup=cancel_keyboard()
+    )
+
+
+@dp.message(lambda message: message.text == MENU_FORGET)
+async def menu_forget(message: types.Message):
+    facts = get_user_memory_facts(message.from_user.id)
+
+    if not facts:
+        await message.answer(
+            "Пока я не сохранил долгосрочных фактов о тебе.",
+            reply_markup=main_keyboard()
+        )
         return
 
-    if status == "not_found":
-        await message.answer("Не нашёл такой факт в памяти.")
+    PENDING_ACTIONS[message.from_user.id] = "forget"
+    memory = "\n".join([
+        f"{index}. {fact}"
+        for index, fact in enumerate(facts, start=1)
+    ])
+
+    await message.answer(
+        f"Вот что я помню:\n\n{memory}\n\n"
+        "Отправь номер факта, который нужно удалить, или точный текст факта.",
+        reply_markup=cancel_keyboard()
+    )
+
+
+@dp.message(lambda message: message.text == MENU_HELP)
+async def menu_help(message: types.Message):
+    PENDING_ACTIONS.pop(message.from_user.id, None)
+    await message.answer(help_text(), reply_markup=main_keyboard())
+
+
+@dp.message(lambda message: message.text == MENU_CANCEL)
+async def menu_cancel(message: types.Message):
+    PENDING_ACTIONS.pop(message.from_user.id, None)
+    await message.answer("Ок, отменил действие.", reply_markup=main_keyboard())
+
+
+@dp.message(lambda message: message.text and message.from_user.id in PENDING_ACTIONS)
+async def handle_pending_action(message: types.Message):
+    action = PENDING_ACTIONS.pop(message.from_user.id)
+    text = message.text.strip()
+
+    if action == "remember":
+        await save_memory_from_text(message, text)
         return
 
-    await message.answer("Удалил факт из памяти.")
+    if action == "forget":
+        await delete_memory_from_text(message, text)
+        return
+
+    await message.answer("Не понял действие. Попробуй ещё раз.", reply_markup=main_keyboard())
 
 
 @dp.message(Command("memory"))
@@ -598,7 +744,10 @@ async def show_memory(message: types.Message):
     facts = get_user_memory_facts(telegram_id)
 
     if not facts:
-        await message.answer("Пока я не сохранил долгосрочных фактов о тебе.")
+        await message.answer(
+            "Пока я не сохранил долгосрочных фактов о тебе.",
+            reply_markup=main_keyboard()
+        )
         return
 
     memory = "\n".join([
@@ -609,7 +758,8 @@ async def show_memory(message: types.Message):
     await message.answer(
         f"Вот что я помню:\n\n{memory}\n\n"
         "Чтобы удалить факт, напиши /forget и его номер.\n"
-        "Чтобы добавить факт, напиши /remember и сам факт."
+        "Чтобы добавить факт, напиши /remember и сам факт.",
+        reply_markup=main_keyboard()
     )
 
 
@@ -625,7 +775,10 @@ async def analyze_food(message: types.Message):
     text = message.text
 
     if not text:
-        await message.answer("Пока я умею анализировать только текст и фото еды.")
+        await message.answer(
+            "Пока я умею анализировать только текст и фото еды.",
+            reply_markup=main_keyboard()
+        )
         return
 
     try:
@@ -636,7 +789,8 @@ async def analyze_food(message: types.Message):
 
     if not is_nutrition_related(text, history=history):
         await message.answer(
-            "Я специализируюсь только на вопросах питания, здоровья, сна, тренировок и образа жизни."
+            "Я специализируюсь только на вопросах питания, здоровья, сна, тренировок и образа жизни.",
+            reply_markup=main_keyboard()
         )
         return
 
@@ -684,7 +838,7 @@ async def analyze_food(message: types.Message):
             "ai_comment": answer
         }).execute()
 
-        await message.answer(answer)
+        await message.answer(answer, reply_markup=main_keyboard())
 
         extract_and_save_memory(
             telegram_id=telegram_id,
@@ -694,7 +848,10 @@ async def analyze_food(message: types.Message):
 
     except Exception as e:
         print("OPENAI ERROR:", repr(e))
-        await message.answer("Не смог сейчас проанализировать сообщение.")
+        await message.answer(
+            "Не смог сейчас проанализировать сообщение.",
+            reply_markup=main_keyboard()
+        )
 
 
 @app.post("/webhook")
