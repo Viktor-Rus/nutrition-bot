@@ -312,7 +312,7 @@ def is_support_chat(chat_id: int):
     return SUPPORT_CHAT_ID and str(chat_id) == str(SUPPORT_CHAT_ID)
 
 
-async def send_support_reply(message: types.Message):
+async def send_support_message(message: types.Message, command: str, prefix: str = ""):
     if not is_support_chat(message.chat.id):
         await message.answer("Эта команда доступна только в чате поддержки.")
         return
@@ -321,36 +321,50 @@ async def send_support_reply(message: types.Message):
 
     if len(parts) < 3:
         await message.answer(
-            "Формат ответа:\n\n"
-            "/reply TELEGRAM_ID текст ответа\n\n"
-            "Например: /reply 367204483 Спасибо за сообщение!"
+            "Формат:\n\n"
+            f"/{command} TELEGRAM_ID текст сообщения\n\n"
+            f"Например: /{command} 367204483 Спасибо за сообщение!"
         )
         return
 
     user_id_text = parts[1].strip()
-    reply_text = parts[2].strip()
+    message_text = parts[2].strip()
 
-    if not user_id_text.isdigit() or not reply_text:
+    if not user_id_text.isdigit() or not message_text:
         await message.answer(
-            "Не понял ID пользователя или текст ответа.\n\n"
-            "Пример: /reply 367204483 Спасибо за сообщение!"
+            "Не понял ID пользователя или текст сообщения.\n\n"
+            f"Пример: /{command} 367204483 Спасибо за сообщение!"
         )
         return
+
+    outgoing_text = f"{prefix}\n\n{message_text}" if prefix else message_text
 
     try:
         await bot.send_message(
             chat_id=int(user_id_text),
-            text=f"Ответ поддержки:\n\n{reply_text}"
+            text=outgoing_text
         )
     except Exception as e:
-        print("SUPPORT REPLY ERROR:", repr(e))
+        print("SUPPORT MESSAGE SEND ERROR:", repr(e))
         await message.answer(
-            "Не смог отправить ответ пользователю. "
+            "Не смог отправить сообщение пользователю. "
             "Проверь Telegram ID и что пользователь уже писал боту."
         )
         return
 
-    await message.answer("Ответ отправлен пользователю.")
+    await message.answer("Сообщение отправлено пользователю.")
+
+
+async def send_support_reply(message: types.Message):
+    await send_support_message(
+        message=message,
+        command="reply",
+        prefix="Ответ поддержки:"
+    )
+
+
+async def send_support_direct_message(message: types.Message):
+    await send_support_message(message=message, command="send")
 
 
 @app.get("/")
@@ -819,6 +833,11 @@ async def feedback_command(message: types.Message):
 @dp.message(Command("reply"))
 async def reply_command(message: types.Message):
     await send_support_reply(message)
+
+
+@dp.message(Command("send"))
+async def send_command(message: types.Message):
+    await send_support_direct_message(message)
 
 
 @dp.message(Command("remember"))
