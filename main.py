@@ -1,5 +1,6 @@
 import os
 import base64
+import asyncio
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -59,6 +60,7 @@ MENU_HELP = "Помощь"
 MENU_CANCEL = "Отмена"
 
 PENDING_ACTIONS = {}
+BROADCAST_DRAFTS = {}
 
 def load_bot_role():
     try:
@@ -365,6 +367,145 @@ async def send_support_reply(message: types.Message):
 
 async def send_support_direct_message(message: types.Message):
     await send_support_message(message=message, command="send")
+
+
+def get_broadcast_recipients():
+    recipients = []
+    page_size = 1000
+    start = 0
+
+    while True:
+        result = (
+            supabase.table("users")
+            .select("telegram_id")
+            .range(start, start + page_size - 1)
+            .execute()
+        )
+        rows = result.data or []
+
+        for row in rows:
+            telegram_id = row.get("telegram_id")
+
+            if telegram_id:
+                recipients.append(int(telegram_id))
+
+        if len(rows) < page_size:
+            break
+
+        start += page_size
+
+    return sorted(set(recipients))
+
+
+async def create_broadcast_draft(message: types.Message):
+    if not is_support_chat(message.chat.id):
+        await message.answer("Эта команда доступна только в чате поддержки.")
+        return
+
+    parts = (message.text or "").split(maxsplit=1)
+
+    if len(parts) < 2 or not parts[1].strip():
+        await message.answer(
+            "Формат рассылки:\n\n"
+            "/broadcast текст сообщения\n\n"
+            "Например: /broadcast Добавили книгу рецептов в меню."
+        )
+        return
+
+    broadcast_text = parts[1].strip()
+
+    if len(broadcast_text) > 3500:
+        await message.answer("Сообщение слишком длинное. Сократи текст до 3500 символов.")
+        return
+
+    try:
+        recipients = get_broadcast_recipients()
+    except Exception as e:
+        print("BROADCAST RECIPIENTS ERROR:", repr(e))
+        await message.answer("Не смог получить список пользователей для рассылки.")
+        return
+
+    if not recipients:
+        await message.answer("Не нашёл пользователей для рассылки.")
+        return
+
+    BROADCAST_DRAFTS[str(message.chat.id)] = {
+        "text": broadcast_text,
+        "created_by": message.from_user.id,
+    }
+
+    await message.answer(
+        "Черновик рассылки создан.\n\n"
+        f"Получателей: {len(recipients)}\n\n"
+        f"Текст:\n{broadcast_text}\n\n"
+        "Чтобы отправить, напиши /confirm_broadcast\n"
+        "Чтобы отменить, напиши /cancel_broadcast"
+    )
+
+
+async def confirm_broadcast(message: types.Message):
+    if not is_support_chat(message.chat.id):
+        await message.answer("Эта команда доступна только в чате поддержки.")
+        return
+
+    draft = BROADCAST_DRAFTS.pop(str(message.chat.id), None)
+
+    if not draft:
+        await message.answer(
+            "Нет активного черновика рассылки.\n\n"
+            "Сначала создай его командой /broadcast текст сообщения"
+        )
+        return
+
+    broadcast_text = draft["text"]
+
+    try:
+        recipients = get_broadcast_recipients()
+    except Exception as e:
+        print("BROADCAST RECIPIENTS ERROR:", repr(e))
+        await message.answer("Не смог получить список пользователей для рассылки.")
+        return
+
+    sent = 0
+    failed = 0
+
+    progress_message = await message.answer(
+        f"Начинаю рассылку для {len(recipients)} пользователей..."
+    )
+
+    for index, telegram_id in enumerate(recipients, start=1):
+        try:
+            await bot.send_message(chat_id=telegram_id, text=broadcast_text)
+            sent += 1
+        except Exception as e:
+            failed += 1
+            print("BROADCAST SEND ERROR:", telegram_id, repr(e))
+
+        if index % 25 == 0:
+            await asyncio.sleep(1)
+        else:
+            await asyncio.sleep(0.05)
+
+    await progress_message.edit_text(
+        "Рассылка завершена.\n\n"
+        f"Получателей: {len(recipients)}\n"
+        f"Отправлено: {sent}\n"
+        f"Ошибок: {failed}"
+    )
+
+
+async def cancel_broadcast(message: types.Message):
+    if not is_support_chat(message.chat.id):
+        await message.answer("Эта команда доступна только в чате поддержки.")
+        return
+
+    draft = BROADCAST_DRAFTS.pop(str(message.chat.id), None)
+
+    if not draft:
+        await message.answer("Нет активного черновика рассылки.")
+        return
+
+    await message.answer("Черновик рассылки отменён.")
 
 
 @app.get("/")
@@ -838,6 +979,21 @@ async def reply_command(message: types.Message):
 @dp.message(Command("send"))
 async def send_command(message: types.Message):
     await send_support_direct_message(message)
+
+
+@dp.message(Command("broadcast"))
+async def broadcast_command(message: types.Message):
+    await create_broadcast_draft(message)
+
+
+@dp.message(Command("confirm_broadcast"))
+async def confirm_broadcast_command(message: types.Message):
+    await confirm_broadcast(message)
+
+
+@dp.message(Command("cancel_broadcast"))
+async def cancel_broadcast_command(message: types.Message):
+    await cancel_broadcast(message)
 
 
 @dp.message(Command("remember"))
