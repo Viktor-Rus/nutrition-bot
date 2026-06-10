@@ -175,7 +175,7 @@ def delete_user_memory_fact(telegram_id: int, fact: str):
     return "deleted"
 
 
-def is_nutrition_related(text: str) -> bool:
+def is_nutrition_related(text: str, history=None) -> bool:
     if not text:
         return True
 
@@ -186,6 +186,7 @@ def is_nutrition_related(text: str) -> bool:
         "еду",
         "продукт",
         "блюд",
+        "рацион",
         "съел",
         "съела",
         "съели",
@@ -198,6 +199,7 @@ def is_nutrition_related(text: str) -> bool:
         "перекус",
         "овсян",
         "молок",
+        "молочн",
         "салат",
         "творог",
         "йогурт",
@@ -210,6 +212,13 @@ def is_nutrition_related(text: str) -> bool:
         "рыб",
         "овощ",
         "фрукт",
+        "растительн",
+        "альтернатив",
+        "заменител",
+        "орех",
+        "семен",
+        "авокадо",
+        "масл",
         "калори",
         "белк",
         "жир",
@@ -226,6 +235,33 @@ def is_nutrition_related(text: str) -> bool:
     )
 
     if any(keyword in normalized_text for keyword in nutrition_keywords):
+        return True
+
+    history_text = " ".join([
+        str(item.get("content", ""))
+        for item in history or []
+    ]).lower().replace("ё", "е")
+
+    follow_up_keywords = (
+        "подбери",
+        "давай",
+        "да",
+        "хочу",
+        "покажи",
+        "расскажи",
+        "посоветуй",
+        "варианты",
+        "подскажи",
+        "можно",
+        "что лучше",
+    )
+
+    if (
+        history_text
+        and len(normalized_text) <= 80
+        and any(keyword in normalized_text for keyword in follow_up_keywords)
+        and any(keyword in history_text for keyword in nutrition_keywords)
+    ):
         return True
 
     try:
@@ -267,9 +303,16 @@ YES
 NO
 
 Если сообщение содержит продукты, блюда или описание того, что пользователь съел или выпил, верни YES.
+Если сообщение является коротким ответом на предыдущую реплику про питание, продукты или рекомендации, верни YES.
 Если сомневаешься, верни YES.
 """,
-            input=text
+            input=f"""
+Предыдущий контекст диалога:
+{history_text or 'Нет контекста.'}
+
+Текущее сообщение пользователя:
+{text}
+"""
         )
 
         result = response.output_text.strip().upper()
@@ -561,7 +604,13 @@ async def analyze_food(message: types.Message):
         await message.answer("Пока я умею анализировать только текст и фото еды.")
         return
 
-    if not is_nutrition_related(text):
+    try:
+        history = get_chat_history(telegram_id, limit=12)
+    except Exception as e:
+        print("CHAT HISTORY ERROR:", repr(e))
+        history = []
+
+    if not is_nutrition_related(text, history=history):
         await message.answer(
             "Я специализируюсь только на вопросах питания, здоровья, сна, тренировок и образа жизни."
         )
@@ -574,11 +623,14 @@ async def analyze_food(message: types.Message):
             "content": text
         }).execute()
 
-        history = get_chat_history(telegram_id, limit=12)
-
         context_input = [
             build_user_memory_context(telegram_id)
-        ] + history
+        ] + history + [
+            {
+                "role": "user",
+                "content": text
+            }
+        ]
 
         response = openai_client.responses.create(
             model="gpt-4.1-mini",
