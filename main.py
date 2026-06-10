@@ -1,5 +1,4 @@
 import os
-import json
 import base64
 
 from dotenv import load_dotenv
@@ -458,71 +457,6 @@ NO
         return True
 
 
-def extract_and_save_memory(telegram_id: int, user_message: str, assistant_answer: str):
-    try:
-        response = openai_client.responses.create(
-            model="gpt-4.1-mini",
-            instructions="""
-Ты извлекаешь долгосрочную память о пользователе для AI-нутрициолога.
-
-Сохраняй только факты, которые могут быть полезны в будущем:
-- цели
-- пищевые предпочтения
-- ограничения
-- аллергии
-- режим питания
-- реакции на еду
-- сон
-- стресс
-- тренировки
-- хронические жалобы
-- привычки
-
-Не сохраняй разовые блюда вроде "съел суп".
-Не сохраняй временные факты без долгосрочной пользы.
-
-Верни строго JSON:
-{
-  "facts": ["факт 1", "факт 2"]
-}
-
-Если фактов нет:
-{
-  "facts": []
-}
-""",
-            input=f"""
-Сообщение пользователя:
-{user_message}
-
-Ответ ассистента:
-{assistant_answer}
-"""
-        )
-
-        try:
-            data = json.loads(response.output_text)
-        except Exception as e:
-            print("MEMORY JSON ERROR:", repr(e), response.output_text)
-            return
-
-        facts = data.get("facts", [])
-
-        for fact in facts:
-            if not fact:
-                continue
-
-            fact = fact.strip()
-
-            if len(fact) < 10:
-                continue
-
-            save_user_memory_fact(telegram_id, fact)
-
-    except Exception as e:
-        print("MEMORY EXTRACTION ERROR:", repr(e))
-
-
 async def analyze_food_photo(message: types.Message):
     telegram_id = message.from_user.id
 
@@ -593,12 +527,6 @@ async def analyze_food_photo(message: types.Message):
         }).execute()
 
         await message.answer(answer, reply_markup=main_keyboard())
-
-        extract_and_save_memory(
-            telegram_id=telegram_id,
-            user_message="[Фото еды]",
-            assistant_answer=answer
-        )
 
     except Exception as e:
         print("PHOTO ANALYSIS ERROR:", repr(e))
@@ -839,12 +767,6 @@ async def analyze_food(message: types.Message):
         }).execute()
 
         await message.answer(answer, reply_markup=main_keyboard())
-
-        extract_and_save_memory(
-            telegram_id=telegram_id,
-            user_message=text,
-            assistant_answer=answer
-        )
 
     except Exception as e:
         print("OPENAI ERROR:", repr(e))
