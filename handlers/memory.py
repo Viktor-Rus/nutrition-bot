@@ -1,10 +1,9 @@
 from aiogram import Dispatcher, types
 from aiogram.filters import Command
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from keyboards import (
-    MENU_FORGET,
     MENU_MEMORY,
-    MENU_REMEMBER,
     cancel_keyboard,
     main_keyboard,
 )
@@ -17,6 +16,23 @@ from services.users import maybe_upsert_private_user
 from state import PENDING_ACTIONS
 
 
+def memory_actions_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Добавить факт",
+                    callback_data="memory:remember"
+                ),
+                InlineKeyboardButton(
+                    text="Удалить факт",
+                    callback_data="memory:forget"
+                ),
+            ],
+        ]
+    )
+
+
 async def show_memory(message: types.Message):
     telegram_id = message.from_user.id
     facts = get_user_memory_facts(telegram_id)
@@ -24,7 +40,7 @@ async def show_memory(message: types.Message):
     if not facts:
         await message.answer(
             "Пока я не сохранил долгосрочных фактов о тебе.",
-            reply_markup=main_keyboard()
+            reply_markup=memory_actions_keyboard()
         )
         return
 
@@ -35,9 +51,41 @@ async def show_memory(message: types.Message):
 
     await message.answer(
         f"Вот что я помню:\n\n{memory}\n\n"
-        "Чтобы удалить факт, напиши /forget и его номер.\n"
-        "Чтобы добавить факт, напиши /remember и сам факт.",
-        reply_markup=main_keyboard()
+        "Выбери действие:",
+        reply_markup=memory_actions_keyboard()
+    )
+
+
+async def request_memory_fact(message: types.Message, user_id: int):
+    PENDING_ACTIONS[user_id] = "remember"
+
+    await message.answer(
+        "Отправь факт, который нужно запомнить.\n\n"
+        "Например: Я не ем молочные продукты",
+        reply_markup=cancel_keyboard()
+    )
+
+
+async def request_memory_delete(message: types.Message, user_id: int):
+    facts = get_user_memory_facts(user_id)
+
+    if not facts:
+        await message.answer(
+            "Пока я не сохранил долгосрочных фактов о тебе.",
+            reply_markup=memory_actions_keyboard()
+        )
+        return
+
+    PENDING_ACTIONS[user_id] = "forget"
+    memory = "\n".join([
+        f"{index}. {fact}"
+        for index, fact in enumerate(facts, start=1)
+    ])
+
+    await message.answer(
+        f"Вот что я помню:\n\n{memory}\n\n"
+        "Отправь номер факта, который нужно удалить, или точный текст факта.",
+        reply_markup=cancel_keyboard()
     )
 
 
@@ -82,42 +130,17 @@ def register(dp: Dispatcher):
         PENDING_ACTIONS.pop(message.from_user.id, None)
         await show_memory(message)
 
-    @dp.message(lambda message: message.text == MENU_REMEMBER)
-    async def menu_remember(message: types.Message):
-        maybe_upsert_private_user(message)
-        PENDING_ACTIONS[message.from_user.id] = "remember"
-
-        await message.answer(
-            "Отправь факт, который нужно запомнить.\n\n"
-            "Например: Я не ем молочные продукты",
-            reply_markup=cancel_keyboard()
-        )
-
-    @dp.message(lambda message: message.text == MENU_FORGET)
-    async def menu_forget(message: types.Message):
-        maybe_upsert_private_user(message)
-        facts = get_user_memory_facts(message.from_user.id)
-
-        if not facts:
-            await message.answer(
-                "Пока я не сохранил долгосрочных фактов о тебе.",
-                reply_markup=main_keyboard()
-            )
-            return
-
-        PENDING_ACTIONS[message.from_user.id] = "forget"
-        memory = "\n".join([
-            f"{index}. {fact}"
-            for index, fact in enumerate(facts, start=1)
-        ])
-
-        await message.answer(
-            f"Вот что я помню:\n\n{memory}\n\n"
-            "Отправь номер факта, который нужно удалить, или точный текст факта.",
-            reply_markup=cancel_keyboard()
-        )
-
     @dp.message(Command("memory"))
     async def memory_command(message: types.Message):
         maybe_upsert_private_user(message)
         await show_memory(message)
+
+    @dp.callback_query(lambda callback: callback.data == "memory:remember")
+    async def memory_remember_callback(callback: types.CallbackQuery):
+        await callback.answer()
+        await request_memory_fact(callback.message, callback.from_user.id)
+
+    @dp.callback_query(lambda callback: callback.data == "memory:forget")
+    async def memory_forget_callback(callback: types.CallbackQuery):
+        await callback.answer()
+        await request_memory_delete(callback.message, callback.from_user.id)

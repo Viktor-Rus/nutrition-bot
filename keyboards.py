@@ -13,8 +13,6 @@ BOT_COMMANDS = [
 
 MENU_RECIPES = "Книга рецептов"
 MENU_MEMORY = "Память"
-MENU_REMEMBER = "Добавить факт"
-MENU_FORGET = "Удалить факт"
 MENU_FEEDBACK = "Обратная связь"
 MENU_HELP = "Помощь"
 MENU_CANCEL = "Отмена"
@@ -26,10 +24,6 @@ def main_keyboard():
             [
                 KeyboardButton(text=MENU_RECIPES),
                 KeyboardButton(text=MENU_MEMORY),
-            ],
-            [
-                KeyboardButton(text=MENU_REMEMBER),
-                KeyboardButton(text=MENU_FORGET),
             ],
             [
                 KeyboardButton(text=MENU_FEEDBACK),
