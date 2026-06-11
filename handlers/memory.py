@@ -50,7 +50,7 @@ async def show_memory(message: types.Message):
     ])
 
     await message.answer(
-        f"Вот что я помню:\n\n{memory}\n\n"
+        f"Вот что я знаю о тебе и буду учитывать при рекомендациях:\n\n{memory}\n\n"
         "Выбери действие:",
         reply_markup=memory_actions_keyboard()
     )
@@ -83,7 +83,7 @@ async def request_memory_delete(message: types.Message, user_id: int):
     ])
 
     await message.answer(
-        f"Вот что я помню:\n\n{memory}\n\n"
+        f"Вот что я знаю о тебе и буду учитывать при рекомендациях:\n\n{memory}\n\n"
         "Отправь номер факта, который нужно удалить, или точный текст факта.",
         reply_markup=cancel_keyboard()
     )

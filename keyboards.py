@@ -12,7 +12,7 @@ BOT_COMMANDS = [
 ]
 
 MENU_RECIPES = "Книга рецептов"
-MENU_MEMORY = "Память"
+MENU_MEMORY = "Факты обо мне"
 MENU_FEEDBACK = "Обратная связь"
 MENU_HELP = "Помощь"
 MENU_CANCEL = "Отмена"

@@ -140,7 +140,7 @@ async def save_memory_from_text(message: types.Message, fact: str):
         return
 
     await message.answer(
-        "Запомнил. Посмотреть сохранённое можно через кнопку «Память» или /memory.",
+        "Запомнил. Посмотреть сохранённое можно через кнопку «Факты обо мне» или /memory.",
         reply_markup=main_keyboard()
     )
 
@@ -156,7 +156,7 @@ async def delete_memory_from_text(message: types.Message, value: str):
 
             if index < 1 or index > len(facts):
                 await message.answer(
-                    "Не нашёл факт с таким номером. Проверь список через кнопку «Память».",
+                    "Не нашёл факт с таким номером. Проверь список через кнопку «Факты обо мне».",
                     reply_markup=main_keyboard()
                 )
                 return
