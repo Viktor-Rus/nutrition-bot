@@ -11,6 +11,16 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 OPENAI_VECTOR_STORE_ID = os.getenv("OPENAI_VECTOR_STORE_ID")
 SUPPORT_CHAT_ID = os.getenv("SUPPORT_CHAT_ID")
+YOOKASSA_PROVIDER_TOKEN = os.getenv("YOOKASSA_PROVIDER_TOKEN")
+PAYMENT_TITLE = os.getenv("PAYMENT_TITLE", "MealAdvisor Premium")
+PAYMENT_DESCRIPTION = os.getenv(
+    "PAYMENT_DESCRIPTION",
+    "Доступ к расширенным возможностям MealAdvisor."
+)
+PAYMENT_LABEL = os.getenv("PAYMENT_LABEL", "MealAdvisor Premium")
+PAYMENT_CURRENCY = os.getenv("PAYMENT_CURRENCY", "RUB")
+PAYMENT_AMOUNT = int(os.getenv("PAYMENT_AMOUNT", "199000"))
+PAYMENT_PROVIDER_DATA = os.getenv("PAYMENT_PROVIDER_DATA")
 
 
 def load_bot_role():
