@@ -6,6 +6,8 @@ BOT_COMMANDS = [
     BotCommand(command="help", description="Что умеет бот"),
     BotCommand(command="recipes", description="Открыть книгу рецептов"),
     BotCommand(command="feedback", description="Написать обратную связь"),
+    BotCommand(command="subscription", description="Статус подписки"),
+    BotCommand(command="cancel_subscription", description="Отменить подписку"),
     BotCommand(command="memory", description="Показать сохранённые факты"),
     BotCommand(command="remember", description="Добавить факт в память"),
     BotCommand(command="forget", description="Удалить факт из памяти"),
