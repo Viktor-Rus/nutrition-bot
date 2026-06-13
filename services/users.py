@@ -15,13 +15,16 @@ def upsert_user_profile(user: types.User):
     profile = build_user_profile(user)
 
     try:
-        supabase.table("users").upsert(profile).execute()
+        supabase.table("users").upsert(
+            profile,
+            on_conflict="telegram_id",
+        ).execute()
     except Exception as e:
         print("SUPABASE USER PROFILE ERROR:", repr(e))
         supabase.table("users").upsert({
             "telegram_id": profile["telegram_id"],
             "name": profile["name"],
-        }).execute()
+        }, on_conflict="telegram_id").execute()
 
 
 def maybe_upsert_private_user(message: types.Message):

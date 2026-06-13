@@ -202,7 +202,10 @@ def get_subscription(telegram_id: int):
 
 
 def upsert_subscription(row):
-    return supabase.table("subscriptions").upsert(row).execute()
+    return supabase.table("subscriptions").upsert(
+        row,
+        on_conflict="telegram_id",
+    ).execute()
 
 
 def update_subscription(telegram_id: int, fields):
