@@ -1,6 +1,7 @@
 from aiogram import Dispatcher, types
 
 from keyboards import MENU_CANCEL, main_keyboard
+from services.access import require_recipes_subscription
 from services.memory import delete_memory_from_text, save_memory_from_text
 from services.recipes import recipe_search_results_keyboard, search_recipes, send_recipe_book
 from services.support import send_feedback_to_support
@@ -30,6 +31,9 @@ def register(dp: Dispatcher):
             return
 
         if action == "recipe_search":
+            if not await require_recipes_subscription(message, message.from_user.id):
+                return
+
             results = search_recipes(text)
 
             if not results:
