@@ -28,6 +28,27 @@ PAYMENT_AMOUNT = int(os.getenv("PAYMENT_AMOUNT", "199000"))
 PAYMENT_PROVIDER_DATA = os.getenv("PAYMENT_PROVIDER_DATA")
 SUBSCRIPTION_TRIAL_DAYS = int(os.getenv("SUBSCRIPTION_TRIAL_DAYS", "7"))
 SUBSCRIPTION_MONTHLY_AMOUNT = int(os.getenv("SUBSCRIPTION_MONTHLY_AMOUNT", "199000"))
+ALLOWED_TELEGRAM_IDS_RAW = os.getenv("ALLOWED_TELEGRAM_IDS", "")
+
+
+def parse_allowed_telegram_ids(value: str):
+    allowed_ids = set()
+
+    for item in (value or "").split(","):
+        item = item.strip()
+
+        if not item:
+            continue
+
+        try:
+            allowed_ids.add(int(item))
+        except ValueError:
+            print("INVALID ALLOWED_TELEGRAM_IDS ITEM:", item)
+
+    return allowed_ids
+
+
+ALLOWED_TELEGRAM_IDS = parse_allowed_telegram_ids(ALLOWED_TELEGRAM_IDS_RAW)
 
 
 def load_bot_role():

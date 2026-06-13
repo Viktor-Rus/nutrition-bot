@@ -6,7 +6,7 @@ from aiogram import types
 from clients import bot, dp
 from handlers.registry import register_handlers
 from keyboards import BOT_COMMANDS
-from config import SUBSCRIPTION_CRON_SECRET
+from config import ALLOWED_TELEGRAM_IDS, SUBSCRIPTION_CRON_SECRET
 from services.payments import (
     activate_subscription_from_return,
     charge_due_subscriptions,
@@ -17,6 +17,69 @@ from services.payments import (
 app = FastAPI()
 
 register_handlers(dp)
+
+
+def get_update_user_id(data):
+    for key in (
+        "message",
+        "edited_message",
+        "callback_query",
+        "pre_checkout_query",
+        "shipping_query",
+    ):
+        event = data.get(key)
+
+        if not event:
+            continue
+
+        user = event.get("from")
+
+        if user and user.get("id"):
+            return int(user["id"])
+
+    return None
+
+
+def get_update_chat_id(data):
+    message = data.get("message") or data.get("edited_message")
+
+    if message and message.get("chat") and message["chat"].get("id"):
+        return int(message["chat"]["id"])
+
+    callback_query = data.get("callback_query")
+
+    if callback_query:
+        message = callback_query.get("message") or {}
+        chat = message.get("chat") or {}
+
+        if chat.get("id"):
+            return int(chat["id"])
+
+    return None
+
+
+async def reject_disallowed_user(data):
+    if not ALLOWED_TELEGRAM_IDS:
+        return False
+
+    user_id = get_update_user_id(data)
+
+    if user_id in ALLOWED_TELEGRAM_IDS:
+        return False
+
+    chat_id = get_update_chat_id(data)
+
+    if chat_id:
+        try:
+            await bot.send_message(
+                chat_id=chat_id,
+                text="Бот временно недоступен. Идёт закрытое тестирование."
+            )
+        except Exception as e:
+            print("ALLOWLIST REJECT MESSAGE ERROR:", repr(e))
+
+    print("DISALLOWED TELEGRAM USER:", user_id)
+    return True
 
 
 @app.get("/")
@@ -97,6 +160,9 @@ async def telegram_webhook(request: Request):
     try:
         data = await request.json()
         print("TELEGRAM UPDATE:", data)
+
+        if await reject_disallowed_user(data):
+            return {"ok": True, "blocked": True}
 
         update = types.Update(**data)
         await dp.feed_update(bot, update)
