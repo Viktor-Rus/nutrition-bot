@@ -16,12 +16,37 @@ def has_active_subscription(telegram_id: int):
         return False
 
 
-async def require_recipes_subscription(message: types.Message, telegram_id: int):
+async def require_subscription(
+    message: types.Message,
+    telegram_id: int,
+    feature_name: str,
+):
     if has_active_subscription(telegram_id):
         return True
 
     await message.answer(
-        "Книга рецептов доступна после подключения подписки.\n\n"
+        f"Функция «{feature_name}» доступна после подключения подписки.\n\n"
+        f"Можно подключить 7 дней бесплатно, затем {format_amount()} в месяц.",
+        reply_markup=start_offer_keyboard()
+    )
+    return False
+
+
+async def require_recipes_subscription(message: types.Message, telegram_id: int):
+    return await require_subscription(message, telegram_id, "Книга рецептов")
+
+
+async def require_food_analysis_subscription(message: types.Message, telegram_id: int):
+    return await require_subscription(message, telegram_id, "Анализ еды")
+
+
+async def require_subscription_callback(callback: types.CallbackQuery, feature_name: str):
+    if has_active_subscription(callback.from_user.id):
+        return True
+
+    await callback.answer(f"Функция «{feature_name}» доступна после подключения подписки.")
+    await callback.message.answer(
+        f"Функция «{feature_name}» доступна после подключения подписки.\n\n"
         f"Можно подключить 7 дней бесплатно, затем {format_amount()} в месяц.",
         reply_markup=start_offer_keyboard()
     )
@@ -29,13 +54,4 @@ async def require_recipes_subscription(message: types.Message, telegram_id: int)
 
 
 async def require_recipes_subscription_callback(callback: types.CallbackQuery):
-    if has_active_subscription(callback.from_user.id):
-        return True
-
-    await callback.answer("Книга рецептов доступна после подключения подписки.")
-    await callback.message.answer(
-        "Книга рецептов доступна после подключения подписки.\n\n"
-        f"Можно подключить 7 дней бесплатно, затем {format_amount()} в месяц.",
-        reply_markup=start_offer_keyboard()
-    )
-    return False
+    return await require_subscription_callback(callback, "Книга рецептов")
