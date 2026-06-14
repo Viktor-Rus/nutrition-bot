@@ -1,5 +1,6 @@
 from aiogram import types
 from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup
+from html import escape
 
 from recipes import RECIPE_CATEGORIES, RECIPES
 
@@ -98,40 +99,42 @@ def recipe_search_results_keyboard(results):
 
 
 def format_recipe(recipe):
-    ingredients = "\n".join([f"- {item}" for item in recipe["ingredients"]])
+    ingredients = "\n".join([f"• {escape(item)}" for item in recipe["ingredients"]])
     steps = "\n".join([
-        f"{index}. {step}"
+        f"<b>{index}.</b> {escape(step)}"
         for index, step in enumerate(recipe["steps"], start=1)
     ])
-    tags = ", ".join(recipe["tags"])
+    tags = ", ".join([f"#{escape(tag.replace(' ', '_'))}" for tag in recipe["tags"]])
     parts = [
-        f"{recipe['title']}\n\n"
-        f"Время: {recipe['time']}\n"
-        f"Раздел: {get_category_title(recipe['category'])}"
+        f"🥕🥥 <b>{escape(recipe['title'])}</b>",
+        (
+            f"⏱ <b>Время:</b> {escape(recipe['time'])}\n"
+            f"📂 <b>Раздел:</b> {escape(get_category_title(recipe['category']))}"
+        ),
     ]
 
     if recipe.get("servings"):
-        parts.append(f"Порции: {recipe['servings']}")
+        parts.append(f"🍽 <b>Порции:</b> {escape(recipe['servings'])}")
 
-    parts.append(f"Теги: {tags}")
+    parts.append(f"🏷 <b>Теги:</b> {tags}")
 
     if recipe.get("summary"):
-        parts.append(f"Коротко:\n{recipe['summary']}")
+        parts.append(f"✨ <b>Коротко</b>\n{escape(recipe['summary'])}")
 
-    parts.append(f"Ингредиенты:\n{ingredients}")
+    parts.append(f"🛒 <b>Ингредиенты</b>\n{ingredients}")
 
     if recipe.get("serving"):
-        serving = "\n".join([f"- {item}" for item in recipe["serving"]])
-        parts.append(f"Для подачи:\n{serving}")
+        serving = "\n".join([f"• {escape(item)}" for item in recipe["serving"]])
+        parts.append(f"🌿 <b>Для подачи</b>\n{serving}")
 
-    parts.append(f"Как готовить:\n{steps}")
+    parts.append(f"👩‍🍳 <b>Как готовить</b>\n{steps}")
 
     if recipe.get("notes"):
-        notes = "\n".join([f"- {item}" for item in recipe["notes"]])
-        parts.append(f"Важные нюансы:\n{notes}")
+        notes = "\n".join([f"• {escape(item)}" for item in recipe["notes"]])
+        parts.append(f"☝️ <b>Важные нюансы</b>\n{notes}")
 
     if recipe.get("habit_tip"):
-        parts.append(f"Маленький лайфхак:\n{recipe['habit_tip']}")
+        parts.append(f"👣 <b>Маленький лайфхак</b>\n{escape(recipe['habit_tip'])}")
 
     return "\n\n".join(parts)
 
@@ -146,7 +149,8 @@ async def send_recipe_detail(message: types.Message, recipe_id: str, recipe):
 
     await message.answer(
         format_recipe(recipe),
-        reply_markup=recipe_detail_keyboard(recipe_id)
+        reply_markup=recipe_detail_keyboard(recipe_id),
+        parse_mode="HTML",
     )
 
 
