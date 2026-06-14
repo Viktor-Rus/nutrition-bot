@@ -104,15 +104,36 @@ def format_recipe(recipe):
         for index, step in enumerate(recipe["steps"], start=1)
     ])
     tags = ", ".join(recipe["tags"])
-
-    return (
+    parts = [
         f"{recipe['title']}\n\n"
         f"Время: {recipe['time']}\n"
-        f"Раздел: {get_category_title(recipe['category'])}\n"
-        f"Теги: {tags}\n\n"
-        f"Ингредиенты:\n{ingredients}\n\n"
-        f"Как готовить:\n{steps}"
-    )
+        f"Раздел: {get_category_title(recipe['category'])}"
+    ]
+
+    if recipe.get("servings"):
+        parts.append(f"Порции: {recipe['servings']}")
+
+    parts.append(f"Теги: {tags}")
+
+    if recipe.get("summary"):
+        parts.append(f"Коротко:\n{recipe['summary']}")
+
+    parts.append(f"Ингредиенты:\n{ingredients}")
+
+    if recipe.get("serving"):
+        serving = "\n".join([f"- {item}" for item in recipe["serving"]])
+        parts.append(f"Для подачи:\n{serving}")
+
+    parts.append(f"Как готовить:\n{steps}")
+
+    if recipe.get("notes"):
+        notes = "\n".join([f"- {item}" for item in recipe["notes"]])
+        parts.append(f"Важные нюансы:\n{notes}")
+
+    if recipe.get("habit_tip"):
+        parts.append(f"Маленький лайфхак:\n{recipe['habit_tip']}")
+
+    return "\n\n".join(parts)
 
 
 def search_recipes(query: str, limit: int = 10):
@@ -129,6 +150,10 @@ def search_recipes(query: str, limit: int = 10):
             get_category_title(recipe["category"]),
             " ".join(recipe["ingredients"]),
             " ".join(recipe["tags"]),
+            recipe.get("summary", ""),
+            " ".join(recipe.get("serving", [])),
+            " ".join(recipe.get("notes", [])),
+            recipe.get("habit_tip", ""),
         ]).lower().replace("ё", "е")
 
         if normalized_query in searchable_text:
