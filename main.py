@@ -93,20 +93,40 @@ async def subscription_return(
     payment_method_id: str = None,
 ):
     try:
-        activated = activate_subscription_from_return(
+        activation_result = activate_subscription_from_return(
             telegram_id=telegram_id,
             payment_method_id=payment_method_id,
         )
     except Exception as e:
         print("SUBSCRIPTION RETURN ERROR:", repr(e))
-        activated = False
+        activation_result = None
 
-    if activated:
+    if activation_result == "trial_activated":
         return """
         <html>
             <body>
                 <h2>Карта привязана</h2>
                 <p>Бесплатная неделя активирована. Можно вернуться в Telegram.</p>
+            </body>
+        </html>
+        """
+
+    if activation_result == "paid_active":
+        return """
+        <html>
+            <body>
+                <h2>Подписка активна</h2>
+                <p>Оплата прошла успешно. Можно вернуться в Telegram.</p>
+            </body>
+        </html>
+        """
+
+    if activation_result == "payment_pending":
+        return """
+        <html>
+            <body>
+                <h2>Карта привязана</h2>
+                <p>Оплата подписки обрабатывается. Результат придёт в Telegram.</p>
             </body>
         </html>
         """

@@ -3,6 +3,7 @@ from aiogram.filters import Command
 
 from keyboards import MENU_HELP, help_text, main_keyboard
 from services.payments import (
+    get_subscription,
     start_offer_keyboard,
     start_offer_text,
 )
@@ -14,10 +15,11 @@ def register(dp: Dispatcher):
     @dp.message(Command("start"))
     async def start(message: types.Message):
         maybe_upsert_private_user(message)
+        subscription = get_subscription(message.from_user.id)
 
         await message.answer(
-            start_offer_text(),
-            reply_markup=start_offer_keyboard()
+            start_offer_text(subscription),
+            reply_markup=start_offer_keyboard(subscription)
         )
 
     @dp.message(Command("help"))
