@@ -1,5 +1,5 @@
 from aiogram import types
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup
 
 from recipes import RECIPE_CATEGORIES, RECIPES
 
@@ -134,6 +134,20 @@ def format_recipe(recipe):
         parts.append(f"Маленький лайфхак:\n{recipe['habit_tip']}")
 
     return "\n\n".join(parts)
+
+
+async def send_recipe_detail(message: types.Message, recipe_id: str, recipe):
+    image_path = recipe.get("image_path")
+
+    if image_path:
+        await message.answer_photo(
+            photo=FSInputFile(image_path),
+        )
+
+    await message.answer(
+        format_recipe(recipe),
+        reply_markup=recipe_detail_keyboard(recipe_id)
+    )
 
 
 def search_recipes(query: str, limit: int = 10):

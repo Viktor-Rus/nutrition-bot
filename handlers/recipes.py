@@ -8,12 +8,11 @@ from services.access import (
     require_recipes_subscription_callback,
 )
 from services.recipes import (
-    format_recipe,
     get_category_title,
     recipe_categories_keyboard,
-    recipe_detail_keyboard,
     recipe_list_keyboard,
     recipes_by_category,
+    send_recipe_detail,
     send_recipe_book,
 )
 from services.users import maybe_upsert_private_user
@@ -101,7 +100,4 @@ def register(dp: Dispatcher):
             )
             return
 
-        await callback.message.edit_text(
-            format_recipe(recipe),
-            reply_markup=recipe_detail_keyboard(recipe_id)
-        )
+        await send_recipe_detail(callback.message, recipe_id, recipe)
