@@ -5,6 +5,9 @@ from html import escape
 from recipes import RECIPE_CATEGORIES, RECIPES
 
 
+RECIPE_IMAGE_FILE_IDS = {}
+
+
 def get_category_title(category_id: str):
     for current_id, title in RECIPE_CATEGORIES:
         if current_id == category_id:
@@ -143,9 +146,12 @@ async def send_recipe_detail(message: types.Message, recipe_id: str, recipe):
     image_path = recipe.get("image_path")
 
     if image_path:
-        await message.answer_photo(
-            photo=FSInputFile(image_path),
-        )
+        cached_file_id = RECIPE_IMAGE_FILE_IDS.get(recipe_id)
+        photo = cached_file_id or FSInputFile(image_path)
+        photo_message = await message.answer_photo(photo=photo)
+
+        if not cached_file_id and photo_message.photo:
+            RECIPE_IMAGE_FILE_IDS[recipe_id] = photo_message.photo[-1].file_id
 
     await message.answer(
         format_recipe(recipe),
