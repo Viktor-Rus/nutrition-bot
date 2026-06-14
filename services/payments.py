@@ -409,6 +409,7 @@ async def start_subscription(message: types.Message, telegram_id: int):
         return
 
     subscription = get_subscription(telegram_id)
+    trial_used = has_used_trial(subscription)
 
     if is_subscription_auto_renewing(subscription):
         await message.answer(
@@ -417,14 +418,12 @@ async def start_subscription(message: types.Message, telegram_id: int):
         )
         return
 
-    if is_subscription_active(subscription):
+    if is_subscription_active(subscription) and subscription.get("status") != "canceled":
         await message.answer(
             format_subscription_status(subscription),
             reply_markup=main_keyboard()
         )
         return
-
-    trial_used = has_used_trial(subscription)
 
     try:
         payment_method = create_payment_method(telegram_id)
@@ -447,10 +446,19 @@ async def start_subscription(message: types.Message, telegram_id: int):
         return
 
     if trial_used:
+        period_ends_at = parse_dt(subscription.get("current_period_ends_at")) if subscription else None
+        access_note = ""
+        if subscription and subscription.get("status") == "canceled" and period_ends_at and period_ends_at > now_utc():
+            access_note = (
+                f"\n\nСейчас доступ уже сохранён до {period_ends_at:%d.%m.%Y %H:%M UTC}. "
+                "Оплаченный месяц добавится после этой даты."
+            )
+
         await message.answer(
             "Чтобы подключить подписку, привяжи карту в ЮKassa.\n\n"
             "Бесплатный период уже был использован, поэтому после привязки карты "
-            f"сразу спишется {format_amount()} за первый месяц.",
+            f"сразу спишется {format_amount()} за первый месяц."
+            f"{access_note}",
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
