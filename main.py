@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
@@ -163,14 +165,14 @@ async def charge_due_subscriptions_endpoint(request: Request):
     return await charge_due_subscriptions()
 
 
-async def setup_bot_menu():
-    await bot.set_my_commands(BOT_COMMANDS)
-
-
 @app.on_event("startup")
 async def on_startup():
+    asyncio.create_task(setup_bot_menu())
+
+
+async def setup_bot_menu():
     try:
-        await setup_bot_menu()
+        await bot.set_my_commands(BOT_COMMANDS)
     except Exception as e:
         print("BOT MENU SETUP ERROR:", repr(e))
 
