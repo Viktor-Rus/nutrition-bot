@@ -25,6 +25,92 @@ FOOD_ANALYSIS_FORMAT_INSTRUCTION = (
 )
 
 
+GENERAL_NUTRITION_ADVICE_INSTRUCTION = (
+    "Пользователь задаёт общий вопрос или просит совет по питанию, а не описывает "
+    "конкретный съеденный приём пищи. Не используй формат анализа еды с блоками "
+    "'🍽️ Что это', '⚠️ Оценка', '✅ Что уже хорошо'. "
+    "Отвечай гибко по смыслу вопроса: дай 2-4 практичных варианта, коротко объясни, "
+    "почему они подходят, и заверши одним простым следующим шагом. "
+    "Если вопрос про быстрый завтрак, предложи варианты на 5-10 минут. "
+    "Если вопрос про вредную/менее полезную еду, объясни, как снизить последствия "
+    "до, во время и после без самобичевания. "
+    "Не считай калории и БЖУ, если пользователь прямо не просит. "
+    "Учитывай сохранённые факты о пользователе."
+)
+
+
+def is_meal_analysis_request(text: str) -> bool:
+    normalized = text.lower().replace("ё", "е").strip()
+
+    advice_markers = (
+        "какой",
+        "какую",
+        "какие",
+        "что приготовить",
+        "что съесть",
+        "что есть",
+        "что можно",
+        "как сделать",
+        "как улучшить",
+        "как снизить",
+        "посоветуй",
+        "подскажи",
+        "подбери",
+        "варианты",
+        "пример",
+        "полезный",
+        "если не успеваю",
+        "не успеваю",
+    )
+    meal_report_markers = (
+        "я съел",
+        "я съела",
+        "я сьел",
+        "я сьела",
+        "я выпил",
+        "я выпила",
+        "сегодня съел",
+        "сегодня съела",
+        "сегодня сьел",
+        "сегодня сьела",
+        "сегодня выпил",
+        "сегодня выпила",
+        "съел ",
+        "съела ",
+        "сьел ",
+        "сьела ",
+        "выпил ",
+        "выпила ",
+        "поел",
+        "поела",
+        "мой завтрак",
+        "мой обед",
+        "мой ужин",
+        "мой перекус",
+        "на завтрак ел",
+        "на завтрак съел",
+        "на обед ел",
+        "на обед съел",
+        "на ужин ел",
+        "на ужин съел",
+        "планирую съесть",
+        "планирую сьесть",
+        "буду есть",
+        "буду пить",
+        "хочу съесть",
+        "хочу сьесть",
+        "хочу выпить",
+    )
+
+    if any(marker in normalized for marker in meal_report_markers):
+        return True
+
+    if normalized.endswith("?") or any(marker in normalized for marker in advice_markers):
+        return False
+
+    return False
+
+
 async def analyze_food_photo(message: types.Message):
     telegram_id = message.from_user.id
 
@@ -143,12 +229,19 @@ async def analyze_food_text(message: types.Message):
             "content": text
         }).execute()
 
+        is_analysis_request = is_meal_analysis_request(text)
+        response_instruction = (
+            FOOD_ANALYSIS_FORMAT_INSTRUCTION
+            if is_analysis_request
+            else GENERAL_NUTRITION_ADVICE_INSTRUCTION
+        )
+
         context_input = [
             build_user_memory_context(telegram_id)
         ] + history + [
             {
                 "role": "system",
-                "content": FOOD_ANALYSIS_FORMAT_INSTRUCTION
+                "content": response_instruction
             },
             {
                 "role": "user",
@@ -178,11 +271,12 @@ async def analyze_food_text(message: types.Message):
             "content": answer
         }).execute()
 
-        supabase.table("meals").insert({
-            "telegram_id": telegram_id,
-            "text": text,
-            "ai_comment": answer
-        }).execute()
+        if is_analysis_request:
+            supabase.table("meals").insert({
+                "telegram_id": telegram_id,
+                "text": text,
+                "ai_comment": answer
+            }).execute()
 
         await message.answer(answer, reply_markup=main_keyboard())
 
