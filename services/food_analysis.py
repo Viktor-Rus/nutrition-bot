@@ -39,6 +39,28 @@ GENERAL_NUTRITION_ADVICE_INSTRUCTION = (
 )
 
 
+MEAL_FOLLOW_UP_INSTRUCTION = (
+    "Пользователь продолжает разговор о недавно обсуждённой еде или описывает "
+    "самочувствие после неё. Отвечай как нутрициолог, который помнит предыдущий "
+    "контекст и ведёт одну непрерывную консультацию. Не говори, что ты "
+    "специализируешься только на питании, потому что вопрос уже относится к еде "
+    "и реакции на неё. Сначала коротко признай ощущение пользователя без драматизации. "
+    "Затем дай 2-4 вероятные пищевые причины по контексту, что можно сделать сейчас, "
+    "что изменить в следующий раз и когда стоит насторожиться, если симптомы повторяются "
+    "или усиливаются. Не ставь диагнозов. Не используй жёсткий шаблон анализа с блоками. "
+    "Если пользователь просто делится ощущением, не требуй уточнений без необходимости: "
+    "сначала дай полезную практическую поддержку. Пиши как живой эксперт, а не как "
+    "анкета или инструкция. Не повторяй заново весь прошлый анализ блюда. Не начинай "
+    "с общих фраз вроде 'это может быть связано с разными факторами' без конкретики. "
+    "Лучше сразу свяжи ощущение с обсуждавшейся едой простым языком: например, объём, "
+    "жирность, сочетание теста и соуса, скорость еды, индивидуальная реакция ЖКТ. "
+    "Строй ответ естественно: 1) короткое человеческое признание ощущения, 2) вероятное "
+    "объяснение по текущему контексту, 3) что сделать сейчас, 4) что изменить в следующий раз. "
+    "Избегай канцелярита, сухих заголовков и повторяющихся формулировок. "
+    "Пусть ответ звучит как продолжение диалога, а не как новый шаблон."
+)
+
+
 def is_meal_analysis_request(text: str) -> bool:
     normalized = text.lower().replace("ё", "е").strip()
 
@@ -109,6 +131,93 @@ def is_meal_analysis_request(text: str) -> bool:
         return False
 
     return False
+
+
+def has_recent_food_context(history) -> bool:
+    recent_messages = history[-6:] if history else []
+    if not recent_messages:
+        return False
+
+    recent_text = " ".join(
+        str(item.get("content", ""))
+        for item in recent_messages
+    ).lower().replace("ё", "е")
+
+    food_context_markers = (
+        "что это",
+        "оценка",
+        "что уже хорошо",
+        "как улучшить",
+        "маленький шаг",
+        "без перфекционизма",
+        "прием пищи",
+        "состав",
+        "завтрак",
+        "обед",
+        "ужин",
+        "перекус",
+        "блюдо",
+        "продукт",
+        "пельмен",
+        "котлет",
+        "салат",
+        "суп",
+        "хлеб",
+        "каша",
+        "омлет",
+    )
+
+    return any(marker in recent_text for marker in food_context_markers)
+
+
+def is_meal_follow_up_request(text: str, history) -> bool:
+    normalized = text.lower().replace("ё", "е").strip()
+
+    symptom_markers = (
+        "тяжест",
+        "вздут",
+        "изжог",
+        "тошнот",
+        "дискомфорт",
+        "урчит",
+        "бурлит",
+        "газ",
+        "переел",
+        "переполн",
+        "тяжело",
+        "сонлив",
+        "слабост",
+        "болит живот",
+        "чувствую",
+        "ощущаю",
+        "после еды",
+        "после такого",
+        "после этого",
+        "от этого",
+        "от такого",
+    )
+
+    if not has_recent_food_context(history):
+        return False
+
+    if any(marker in normalized for marker in symptom_markers):
+        return True
+
+    short_follow_up_markers = (
+        "это нормально",
+        "почему так",
+        "что делать",
+        "как быть",
+        "что лучше сейчас",
+        "что можно сейчас",
+        "как помочь",
+        "из за чего",
+        "из-за чего",
+    )
+
+    return len(normalized) <= 160 and any(
+        marker in normalized for marker in short_follow_up_markers
+    )
 
 
 async def analyze_food_photo(message: types.Message):
@@ -230,10 +339,15 @@ async def analyze_food_text(message: types.Message):
         }).execute()
 
         is_analysis_request = is_meal_analysis_request(text)
+        is_follow_up_request = is_meal_follow_up_request(text, history)
         response_instruction = (
             FOOD_ANALYSIS_FORMAT_INSTRUCTION
             if is_analysis_request
-            else GENERAL_NUTRITION_ADVICE_INSTRUCTION
+            else (
+                MEAL_FOLLOW_UP_INSTRUCTION
+                if is_follow_up_request
+                else GENERAL_NUTRITION_ADVICE_INSTRUCTION
+            )
         )
 
         context_input = [

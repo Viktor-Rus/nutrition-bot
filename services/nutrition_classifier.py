@@ -58,6 +58,21 @@ def is_nutrition_related(text: str, history=None) -> bool:
         "похуд",
         "вес",
         "масса",
+        "тяжест",
+        "вздут",
+        "изжог",
+        "тошнот",
+        "дискомфорт",
+        "урчан",
+        "бурлен",
+        "газы",
+        "переел",
+        "переполн",
+        "плохо после еды",
+        "тяжело после еды",
+        "чувствую тяжесть",
+        "самочувствие после еды",
+        "реакция на еду",
     )
 
     if any(keyword in normalized_text for keyword in nutrition_keywords):
@@ -80,13 +95,61 @@ def is_nutrition_related(text: str, history=None) -> bool:
         "подскажи",
         "можно",
         "что лучше",
+        "после",
+        "после еды",
+        "после такого",
+        "от этого",
+        "от такого",
+        "теперь",
+        "стало",
+        "чувствую",
+        "ощущаю",
+        "тяжело",
+    )
+
+    follow_up_symptom_keywords = (
+        "тяжест",
+        "вздут",
+        "изжог",
+        "тошнот",
+        "дискомфорт",
+        "урчит",
+        "бурлит",
+        "газы",
+        "переел",
+        "переполн",
+        "сонлив",
+        "слабост",
+        "клонит в сон",
+        "болит живот",
+        "тянет живот",
+    )
+
+    recent_nutrition_context_markers = nutrition_keywords + (
+        "что это",
+        "оценка",
+        "что уже хорошо",
+        "как улучшить",
+        "маленький шаг",
+        "без перфекционизма",
+        "проанализируй состав",
+        "состав",
+        "прием пищи",
     )
 
     if (
         history_text
         and len(normalized_text) <= 80
         and any(keyword in normalized_text for keyword in follow_up_keywords)
-        and any(keyword in history_text for keyword in nutrition_keywords)
+        and any(keyword in history_text for keyword in recent_nutrition_context_markers)
+    ):
+        return True
+
+    if (
+        history_text
+        and len(normalized_text) <= 160
+        and any(keyword in normalized_text for keyword in follow_up_symptom_keywords)
+        and any(keyword in history_text for keyword in recent_nutrition_context_markers)
     ):
         return True
 
