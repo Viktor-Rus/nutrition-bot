@@ -6,6 +6,86 @@ from recipes import RECIPE_CATEGORIES, RECIPES
 
 
 RECIPE_IMAGE_FILE_IDS = {}
+RECIPE_EMOJI_KEYWORDS = [
+    ("🥤", ("коктейл", "эликсир", "напит", "смузи")),
+    ("🍫", ("шоколад", "какао", "брауни")),
+    ("🍞", ("хлеб", "лепеш", "тортиль")),
+    ("🥚", ("яйц", "омлет", "пашот")),
+    ("🥗", ("салат", "табуле")),
+    ("🍲", ("суп", "бульон", "лазан", "ризотто")),
+    ("🐟", ("рыб", "хек", "треск", "горбуш", "скумбр", "лосос")),
+    ("🦐", ("кревет",)),
+    ("🦑", ("кальмар",)),
+    ("🦀", ("краб",)),
+    ("🍗", ("кур", "индей", "птиц")),
+    ("🥩", ("говяд", "телят", "мяс", "фарш", "печен", "сердеч", "язык", "субпродукт")),
+    ("🥒", ("огур", "цуккини", "кабач")),
+    ("🥬", ("капуст", "мангольд", "ботв", "шпинат", "руккол", "зелень")),
+    ("🥕", ("морков",)),
+    ("🧄", ("чеснок",)),
+    ("🍅", ("томат", "помидор")),
+    ("🥑", ("авокад",)),
+    ("🍎", ("яблок",)),
+    ("🍌", ("банан",)),
+    ("🍋", ("лимон", "лайм")),
+    ("🥥", ("кокос",)),
+    ("🎃", ("тыкв",)),
+    ("🥦", ("броккол", "брюссель")),
+    ("🌾", ("греч", "киноа", "пшен", "рис", "чечев", "нут", "маш", "зерн")),
+    ("🥜", ("орех", "миндал", "чиа", "лен", "семен")),
+    ("🫜", ("свекл", "редьк")),
+]
+RECIPE_EMOJI_FALLBACKS = {
+    "soups_broths": ["🍲"],
+    "poultry": ["🍗"],
+    "meat_offal": ["🥩"],
+    "fish_seafood": ["🐟"],
+    "eggs": ["🥚"],
+    "vegetables_sides": ["🥗"],
+    "grains_seeds": ["🌾"],
+    "preserves": ["🫙"],
+    "bakery_desserts": ["🍰"],
+    "drinks": ["🥤"],
+    "lifehacks": ["💡"],
+}
+
+
+def normalize_recipe_text(value: str):
+    return (value or "").lower().replace("ё", "е").strip()
+
+
+def get_recipe_title_emojis(recipe, max_count: int = 2):
+    emojis = []
+    sources = [
+        recipe.get("title", ""),
+        *recipe.get("ingredients", []),
+        *recipe.get("tags", []),
+        recipe.get("summary", ""),
+    ]
+
+    for source in sources:
+        text = normalize_recipe_text(source)
+
+        for emoji, keywords in RECIPE_EMOJI_KEYWORDS:
+            if emoji in emojis:
+                continue
+
+            if any(keyword in text for keyword in keywords):
+                emojis.append(emoji)
+
+                if len(emojis) >= max_count:
+                    return " ".join(emojis)
+
+    for fallback_emoji in RECIPE_EMOJI_FALLBACKS.get(recipe.get("category"), []):
+        if fallback_emoji not in emojis:
+            emojis.append(fallback_emoji)
+        if len(emojis) >= max_count:
+            break
+
+    if not emojis:
+        return "🍽"
+
+    return " ".join(emojis[:max_count])
 
 
 def get_category_title(category_id: str):
@@ -108,8 +188,9 @@ def format_recipe(recipe):
         for index, step in enumerate(recipe["steps"], start=1)
     ])
     tags = ", ".join([f"#{escape(tag.replace(' ', '_'))}" for tag in recipe["tags"]])
+    title_emojis = get_recipe_title_emojis(recipe)
     parts = [
-        f"🥕🥥 <b>{escape(recipe['title'])}</b>",
+        f"{title_emojis} <b>{escape(recipe['title'])}</b>",
         (
             f"⏱ <b>Время:</b> {escape(recipe['time'])}\n"
             f"📂 <b>Раздел:</b> {escape(get_category_title(recipe['category']))}"
