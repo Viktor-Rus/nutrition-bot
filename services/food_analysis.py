@@ -170,6 +170,39 @@ def has_recent_food_context(history) -> bool:
     return any(marker in recent_text for marker in food_context_markers)
 
 
+def has_recent_symptom_context(history) -> bool:
+    recent_messages = history[-6:] if history else []
+    if not recent_messages:
+        return False
+
+    recent_text = " ".join(
+        str(item.get("content", ""))
+        for item in recent_messages
+    ).lower().replace("ё", "е")
+
+    symptom_context_markers = (
+        "тяжест",
+        "вздут",
+        "изжог",
+        "тошнот",
+        "дискомфорт",
+        "урчит",
+        "бурлит",
+        "газ",
+        "переел",
+        "переполн",
+        "тяжело",
+        "сонлив",
+        "слабост",
+        "болит живот",
+        "что можно сделать сейчас",
+        "что делать сейчас",
+        "что лучше сделать сейчас",
+    )
+
+    return any(marker in recent_text for marker in symptom_context_markers)
+
+
 def is_meal_follow_up_request(text: str, history) -> bool:
     normalized = text.lower().replace("ё", "е").strip()
 
@@ -207,16 +240,42 @@ def is_meal_follow_up_request(text: str, history) -> bool:
         "это нормально",
         "почему так",
         "что делать",
+        "что делать сейчас",
+        "что мне лучше сделать сейчас",
+        "что лучше сделать сейчас",
+        "что сейчас сделать",
         "как быть",
         "что лучше сейчас",
         "что можно сейчас",
         "как помочь",
+        "как помочь себе",
+        "как облегчить",
+        "что выпить",
+        "что съесть потом",
+        "что лучше дальше",
         "из за чего",
         "из-за чего",
     )
 
-    return len(normalized) <= 160 and any(
+    if len(normalized) <= 160 and any(
         marker in normalized for marker in short_follow_up_markers
+    ):
+        return True
+
+    immediate_action_markers = (
+        "сейчас",
+        "прямо сейчас",
+        "что делать",
+        "как быть",
+        "как помочь",
+        "как облегчить",
+        "что выпить",
+    )
+
+    return (
+        len(normalized) <= 120
+        and has_recent_symptom_context(history)
+        and any(marker in normalized for marker in immediate_action_markers)
     )
 
 

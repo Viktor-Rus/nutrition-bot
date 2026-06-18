@@ -95,6 +95,14 @@ def is_nutrition_related(text: str, history=None) -> bool:
         "подскажи",
         "можно",
         "что лучше",
+        "что мне лучше",
+        "что делать",
+        "что делать сейчас",
+        "что сейчас делать",
+        "сделать сейчас",
+        "как облегчить",
+        "как помочь себе",
+        "что выпить",
         "после",
         "после еды",
         "после такого",
@@ -125,6 +133,23 @@ def is_nutrition_related(text: str, history=None) -> bool:
         "тянет живот",
     )
 
+    action_follow_up_keywords = (
+        "что делать",
+        "что делать сейчас",
+        "что мне лучше сделать сейчас",
+        "что лучше сделать сейчас",
+        "что сейчас сделать",
+        "сделать сейчас",
+        "как быть",
+        "как облегчить",
+        "как помочь",
+        "как помочь себе",
+        "что выпить",
+        "что съесть потом",
+        "что лучше дальше",
+        "это нормально",
+    )
+
     recent_nutrition_context_markers = nutrition_keywords + (
         "что это",
         "оценка",
@@ -150,6 +175,14 @@ def is_nutrition_related(text: str, history=None) -> bool:
         and len(normalized_text) <= 160
         and any(keyword in normalized_text for keyword in follow_up_symptom_keywords)
         and any(keyword in history_text for keyword in recent_nutrition_context_markers)
+    ):
+        return True
+
+    if (
+        history_text
+        and len(normalized_text) <= 120
+        and any(keyword in normalized_text for keyword in action_follow_up_keywords)
+        and any(keyword in history_text for keyword in follow_up_symptom_keywords + recent_nutrition_context_markers)
     ):
         return True
 
