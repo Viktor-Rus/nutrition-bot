@@ -279,6 +279,54 @@ def is_meal_follow_up_request(text: str, history) -> bool:
     )
 
 
+def get_latest_meal_thread(history):
+    if not history:
+        return []
+
+    last_meal_index = None
+
+    for index in range(len(history) - 1, -1, -1):
+        item = history[index]
+        if item.get("role") != "user":
+            continue
+
+        content = str(item.get("content", "")).strip()
+        if content and is_meal_analysis_request(content):
+            last_meal_index = index
+            break
+
+    if last_meal_index is None:
+        return history[-6:]
+
+    return history[last_meal_index:]
+
+
+def build_follow_up_focus_context(history):
+    meal_thread = get_latest_meal_thread(history)
+
+    latest_meal_text = ""
+    for item in meal_thread:
+        if item.get("role") != "user":
+            continue
+
+        content = str(item.get("content", "")).strip()
+        if content and is_meal_analysis_request(content):
+            latest_meal_text = content
+            break
+
+    focus_parts = [
+        "Для текущего follow-up ориентируйся прежде всего на последний обсуждавшийся приём пищи, а не на более старые из истории."
+    ]
+
+    if latest_meal_text:
+        focus_parts.append(f"Последний релевантный приём пищи: {latest_meal_text}")
+
+    return {
+        "role": "system",
+        "content": " ".join(focus_parts)
+    }, meal_thread
+
+
 async def analyze_food_photo(message: types.Message):
     telegram_id = message.from_user.id
 
@@ -409,9 +457,17 @@ async def analyze_food_text(message: types.Message):
             )
         )
 
+        context_history = history
+        extra_system_context = []
+
+        if is_follow_up_request:
+            follow_up_focus_context, meal_thread = build_follow_up_focus_context(history)
+            extra_system_context.append(follow_up_focus_context)
+            context_history = meal_thread
+
         context_input = [
             build_user_memory_context(telegram_id)
-        ] + history + [
+        ] + extra_system_context + context_history + [
             {
                 "role": "system",
                 "content": response_instruction
