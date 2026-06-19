@@ -208,10 +208,38 @@ def has_recent_symptom_context(history) -> bool:
     return any(marker in recent_text for marker in symptom_context_markers)
 
 
+def has_recent_assistant_offer_context(history) -> bool:
+    recent_messages = history[-6:] if history else []
+    if not recent_messages:
+        return False
+
+    recent_assistant_text = " ".join(
+        str(item.get("content", ""))
+        for item in recent_messages
+        if item.get("role") == "assistant"
+    ).lower().replace("ё", "е")
+
+    assistant_offer_markers = (
+        "могу помочь",
+        "могу подсказать",
+        "могу помочь с советами",
+        "если нужно, могу помочь",
+        "если хочешь, могу помочь",
+        "по выбору",
+        "по приготовлению",
+        "что сделать сейчас",
+        "что изменить в следующий раз",
+    )
+
+    return any(marker in recent_assistant_text for marker in assistant_offer_markers)
+
+
 def is_meal_follow_up_request(text: str, history) -> bool:
     normalized = text.lower().replace("ё", "е").strip()
+    compact_text = normalized.strip(" .!?")
     has_food_context = has_recent_food_context(history)
     has_symptom_context = has_recent_symptom_context(history)
+    has_assistant_offer_context = has_recent_assistant_offer_context(history)
 
     symptom_markers = (
         "тяжест",
@@ -246,9 +274,28 @@ def is_meal_follow_up_request(text: str, history) -> bool:
     if any(marker in normalized for marker in symptom_markers):
         return True
 
+    simple_follow_up_replies = (
+        "помоги",
+        "помочь",
+        "давай",
+        "подскажи",
+        "расскажи",
+        "что посоветуешь",
+        "и что теперь",
+        "дальше",
+    )
+
+    if (
+        compact_text in simple_follow_up_replies
+        and has_food_context
+        and has_assistant_offer_context
+    ):
+        return True
+
     short_follow_up_markers = (
         "это нормально",
         "почему так",
+        "помоги",
         "что делать",
         "что делать сейчас",
         "что мне лучше сделать сейчас",
@@ -337,7 +384,8 @@ def build_follow_up_focus_context(history):
             break
 
     focus_parts = [
-        "Для текущего follow-up ориентируйся прежде всего на последний обсуждавшийся приём пищи, а не на более старые из истории."
+        "Для текущего follow-up ориентируйся прежде всего на последний обсуждавшийся приём пищи, а не на более старые из истории.",
+        "Если в истории есть более ранние блюда или старые жалобы, не связывай текущий вопрос с ними, если пользователь явно не возвращается именно к ним."
     ]
 
     if latest_meal_text:

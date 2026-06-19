@@ -91,9 +91,12 @@ def is_nutrition_related(text: str, history=None) -> bool:
         "давай",
         "да",
         "хочу",
+        "помоги",
+        "помочь",
         "покажи",
         "расскажи",
         "посоветуй",
+        "что посоветуешь",
         "варианты",
         "подскажи",
         "можно",
@@ -122,6 +125,8 @@ def is_nutrition_related(text: str, history=None) -> bool:
         "что это может быть",
         "о чем это говорит",
         "о чём это говорит",
+        "дальше",
+        "и что теперь",
     )
 
     follow_up_symptom_keywords = (
@@ -146,6 +151,8 @@ def is_nutrition_related(text: str, history=None) -> bool:
     )
 
     action_follow_up_keywords = (
+        "помоги",
+        "помочь",
         "что делать",
         "что делать сейчас",
         "что мне лучше сделать сейчас",
@@ -177,13 +184,46 @@ def is_nutrition_related(text: str, history=None) -> bool:
         "проанализируй состав",
         "состав",
         "прием пищи",
+        "могу помочь",
+        "могу подсказать",
+        "могу помочь с советами",
+        "по выбору",
+        "по приготовлению",
     )
+
+    assistant_offer_markers = (
+        "могу помочь",
+        "могу подсказать",
+        "могу помочь с советами",
+        "по выбору",
+        "по приготовлению",
+        "если нужно, могу помочь",
+        "если хочешь, могу помочь",
+    )
+
+    compact_text = normalized_text.strip(" .!?")
 
     if (
         history_text
         and len(normalized_text) <= 80
         and any(keyword in normalized_text for keyword in follow_up_keywords)
         and any(keyword in history_text for keyword in recent_nutrition_context_markers)
+    ):
+        return True
+
+    if (
+        history_text
+        and compact_text in (
+            "помоги",
+            "помочь",
+            "давай",
+            "подскажи",
+            "расскажи",
+            "что посоветуешь",
+            "и что теперь",
+            "дальше",
+        )
+        and any(marker in history_text for marker in assistant_offer_markers)
     ):
         return True
 
