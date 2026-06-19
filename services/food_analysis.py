@@ -1,4 +1,5 @@
 import base64
+import re
 
 from aiogram import types
 
@@ -246,6 +247,102 @@ def has_recent_assistant_offer_context(history) -> bool:
     return any(marker in recent_assistant_text for marker in assistant_offer_markers)
 
 
+def normalize_good_meal_analysis(answer: str) -> str:
+    normalized = answer.lower().replace("ё", "е")
+
+    positive_assessment_markers = (
+        "очень сбалансирован",
+        "хороший и сбалансированный",
+        "сбалансированный и питательный",
+        "хорошее сочетание белков",
+        "выглядит вполне рабочим вариантом",
+    )
+    strong_negative_markers = (
+        "лучше не делать регулярным",
+        "сильных сторон мало",
+        "слабый прием пищи",
+        "слабый приём пищи",
+        "много сахара",
+        "ультра-переработ",
+        "алкогол",
+        "кофе натощак",
+    )
+    speculative_markers = (
+        "более плотный элемент",
+        "плотный элемент",
+        "сделать прием пищи легче",
+        "сделать приём пищи легче",
+        "можно чуть изменить",
+        "можно слегка облегчить",
+        "уменьшить количество масла",
+        "заменить часть картофеля",
+        "добавить чуть больше разноцветных овощей",
+        "для микронутриентов",
+        "если возможно",
+    )
+
+    if not any(marker in normalized for marker in positive_assessment_markers):
+        return answer
+
+    if any(marker in normalized for marker in strong_negative_markers):
+        return answer
+
+    if not any(marker in normalized for marker in speculative_markers):
+        return answer
+
+    answer = re.sub(
+        r"(⚠️ Оценка\n)(.*?)(\n✅ Что уже хорошо)",
+        (
+            r"\1"
+            "Это очень сбалансированный и питательный приём пищи с белком, "
+            "полезными жирами и овощами. По фото здесь нет явных слабых мест, "
+            "которые нужно обязательно корректировать."
+            r"\3"
+        ),
+        answer,
+        count=1,
+        flags=re.S,
+    )
+
+    answer = re.sub(
+        r"(🔧 Как улучшить\n)(.*?)(\n👣 Маленький шаг)",
+        (
+            r"\1"
+            "• здесь улучшения не обязательны\n"
+            "• если ты хорошо себя чувствуешь после такого приёма пищи, его можно спокойно оставлять как есть"
+            r"\3"
+        ),
+        answer,
+        count=1,
+        flags=re.S,
+    )
+
+    answer = re.sub(
+        r"(👣 Маленький шаг\n)(.*?)(\n💬 Без перфекционизма)",
+        (
+            r"\1"
+            "Маленький шаг здесь не обязателен: это уже хороший, собранный приём пищи."
+            r"\3"
+        ),
+        answer,
+        count=1,
+        flags=re.S,
+    )
+
+    answer = re.sub(
+        r"(💬 Без перфекционизма\n)(.*)$",
+        (
+            r"\1"
+            "Не каждый хороший приём пищи нужно улучшать. Если такой вариант тебе подходит по самочувствию и насыщению, это уже удачный выбор."
+        ),
+        answer,
+        count=1,
+        flags=re.S,
+    )
+
+    return answer
+
+
 def is_meal_follow_up_request(text: str, history) -> bool:
     normalized = text.lower().replace("ё", "е").strip()
     compact_text = normalized.strip(" .!?")
@@ -471,7 +568,7 @@ async def analyze_food_photo(message: types.Message):
             ]
         )
 
-        answer = response.output_text
+        answer = normalize_good_meal_analysis(response.output_text)
 
         supabase.table("messages").insert({
             "telegram_id": telegram_id,
@@ -584,6 +681,9 @@ async def analyze_food_text(message: types.Message):
         )
 
         answer = response.output_text
+
+        if is_analysis_request:
+            answer = normalize_good_meal_analysis(answer)
 
         supabase.table("messages").insert({
             "telegram_id": telegram_id,
