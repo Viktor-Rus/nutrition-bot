@@ -73,6 +73,9 @@ def is_nutrition_related(text: str, history=None) -> bool:
         "чувствую тяжесть",
         "самочувствие после еды",
         "реакция на еду",
+        "тяжко",
+        "плохо после",
+        "нехорошо после",
     )
 
     if any(keyword in normalized_text for keyword in nutrition_keywords):
@@ -113,6 +116,12 @@ def is_nutrition_related(text: str, history=None) -> bool:
         "чувствую",
         "ощущаю",
         "тяжело",
+        "тяжко",
+        "что это значит",
+        "что это может значить",
+        "что это может быть",
+        "о чем это говорит",
+        "о чём это говорит",
     )
 
     follow_up_symptom_keywords = (
@@ -131,6 +140,9 @@ def is_nutrition_related(text: str, history=None) -> bool:
         "клонит в сон",
         "болит живот",
         "тянет живот",
+        "тяжко",
+        "плохо",
+        "нехорошо",
     )
 
     action_follow_up_keywords = (
@@ -148,6 +160,11 @@ def is_nutrition_related(text: str, history=None) -> bool:
         "что съесть потом",
         "что лучше дальше",
         "это нормально",
+        "что это значит",
+        "что это может значить",
+        "что это может быть",
+        "о чем это говорит",
+        "о чём это говорит",
     )
 
     recent_nutrition_context_markers = nutrition_keywords + (

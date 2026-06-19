@@ -1,7 +1,7 @@
 from aiogram import types
 
 from clients import supabase
-from keyboards import main_keyboard
+from keyboards import MENU_MEMORY, main_keyboard
 
 
 def get_chat_history(telegram_id: int, limit: int = 10):
@@ -71,6 +71,40 @@ def build_user_memory_context(telegram_id: int):
             "знаний и персонального контекста пользователя."
         )
     }
+
+
+def is_memory_save_request(text: str) -> bool:
+    normalized = (text or "").lower().replace("ё", "е").strip()
+
+    if not normalized:
+        return False
+
+    memory_request_markers = (
+        "запомни, что",
+        "запомни что",
+        "запомни это",
+        "запомни:",
+        "добавь в память",
+        "добавь в базу знаний",
+        "сохрани в память",
+        "сохрани как факт",
+        "сохрани это как факт",
+        "запиши в память",
+        "это важно запомнить",
+        "учти в будущем",
+        "запомни на будущее",
+    )
+
+    return normalized.startswith(memory_request_markers)
+
+
+async def prompt_memory_save_via_menu(message: types.Message):
+    await message.answer(
+        "Чтобы я действительно сохранил это в долгосрочную память, добавь факт через меню "
+        f"«{MENU_MEMORY}» -> «Добавить факт».\n\n"
+        "Тогда я буду стабильно учитывать его в следующих рекомендациях и анализе питания.",
+        reply_markup=main_keyboard()
+    )
 
 
 def save_user_memory_fact(telegram_id: int, fact: str):

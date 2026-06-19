@@ -5,7 +5,12 @@ from aiogram import types
 from clients import bot, openai_client, supabase
 from config import BOT_ROLE, OPENAI_VECTOR_STORE_ID
 from keyboards import main_keyboard
-from services.memory import build_user_memory_context, get_chat_history
+from services.memory import (
+    build_user_memory_context,
+    get_chat_history,
+    is_memory_save_request,
+    prompt_memory_save_via_menu,
+)
 from services.nutrition_classifier import is_nutrition_related
 
 
@@ -205,6 +210,8 @@ def has_recent_symptom_context(history) -> bool:
 
 def is_meal_follow_up_request(text: str, history) -> bool:
     normalized = text.lower().replace("ё", "е").strip()
+    has_food_context = has_recent_food_context(history)
+    has_symptom_context = has_recent_symptom_context(history)
 
     symptom_markers = (
         "тяжест",
@@ -218,8 +225,11 @@ def is_meal_follow_up_request(text: str, history) -> bool:
         "переел",
         "переполн",
         "тяжело",
+        "тяжко",
         "сонлив",
         "слабост",
+        "плохо",
+        "нехорошо",
         "болит живот",
         "чувствую",
         "ощущаю",
@@ -230,7 +240,7 @@ def is_meal_follow_up_request(text: str, history) -> bool:
         "от такого",
     )
 
-    if not has_recent_food_context(history):
+    if not has_food_context and not has_symptom_context:
         return False
 
     if any(marker in normalized for marker in symptom_markers):
@@ -255,10 +265,19 @@ def is_meal_follow_up_request(text: str, history) -> bool:
         "что лучше дальше",
         "из за чего",
         "из-за чего",
+        "что это значит",
+        "что это может значить",
+        "что это может быть",
+        "о чем это говорит",
+        "о чём это говорит",
     )
 
-    if len(normalized) <= 160 and any(
+    if (
+        len(normalized) <= 160
+        and (has_food_context or has_symptom_context)
+        and any(
         marker in normalized for marker in short_follow_up_markers
+        )
     ):
         return True
 
@@ -270,11 +289,14 @@ def is_meal_follow_up_request(text: str, history) -> bool:
         "как помочь",
         "как облегчить",
         "что выпить",
+        "что это значит",
+        "что это может значить",
+        "что это может быть",
     )
 
     return (
         len(normalized) <= 120
-        and has_recent_symptom_context(history)
+        and has_symptom_context
         and any(marker in normalized for marker in immediate_action_markers)
     )
 
@@ -423,6 +445,10 @@ async def analyze_food_text(message: types.Message):
             "Пока я умею анализировать только текст и фото еды.",
             reply_markup=main_keyboard()
         )
+        return
+
+    if is_memory_save_request(text):
+        await prompt_memory_save_via_menu(message)
         return
 
     try:
