@@ -33,6 +33,9 @@ FOOD_ANALYSIS_FORMAT_INSTRUCTION = (
     "'менее полезной' только по общему впечатлению или по типичному сценарию блюда. "
     "Не додумывай детали, которых нет в тексте или на фото: количество масла, способ жарки, "
     "состав соуса, жирность продукта, размер порции, наличие сахара или точный рецепт. "
+    "Например, если пользователь просто написал 'йогурт', не делай вывод, что там был "
+    "добавленный сахар, ароматизаторы, загустители или сладкие наполнители, пока он сам этого "
+    "не сказал или этого явно не видно. "
     "Если улучшение зависит от неизвестной детали, сначала коротко обозначь неопределённость "
     "и при необходимости задай один уточняющий вопрос. "
     "Блок '👣 Маленький шаг' тоже не обязателен любой ценой: если улучшение не требуется, "
@@ -75,7 +78,15 @@ MEAL_FOLLOW_UP_INSTRUCTION = (
     "Строй ответ естественно: 1) короткое человеческое признание ощущения, 2) вероятное "
     "объяснение по текущему контексту, 3) что сделать сейчас, 4) что изменить в следующий раз. "
     "Избегай канцелярита, сухих заголовков и повторяющихся формулировок. "
-    "Пусть ответ звучит как продолжение диалога, а не как новый шаблон."
+    "Пусть ответ звучит как продолжение диалога, а не как новый шаблон. "
+    "Не додумывай состав продукта, если пользователь его не описал. Если он сказал только "
+    "'йогурт', 'паста', 'пельмени' или другое общее название, не делай вид, что знаешь про "
+    "добавленный сахар, соусы, количество масла, жирность, наполнители или способ приготовления. "
+    "В таких случаях либо говори осторожно: 'если йогурт был сладкий/с добавками, это тоже могло "
+    "повлиять', либо задай один короткий уточняющий вопрос, только если без него совет будет "
+    "слишком неточным. "
+    "Если данных мало, не переходи сразу к совету 'уменьшить сахар', 'снизить масло' или "
+    "'убрать соус' как к уже установленному факту."
 )
 
 
@@ -141,8 +152,16 @@ def is_meal_analysis_request(text: str) -> bool:
         "хочу сьесть",
         "хочу выпить",
     )
+    meal_report_patterns = (
+        r"^(ел|ела|пил|пила)\b",
+        r"^(съел|съела|сьел|сьела|выпил|выпила)\b",
+        r"^на\s+(завтрак|обед|ужин|перекус)\s+(ел|ела|съел|съела)\b",
+    )
 
     if any(marker in normalized for marker in meal_report_markers):
+        return True
+
+    if any(re.search(pattern, normalized) for pattern in meal_report_patterns):
         return True
 
     if normalized.endswith("?") or any(marker in normalized for marker in advice_markers):
@@ -469,7 +488,7 @@ def get_latest_meal_thread(history):
             continue
 
         content = str(item.get("content", "")).strip()
-        if content and is_meal_analysis_request(content):
+        if content == "[Фото еды]" or (content and is_meal_analysis_request(content)):
             last_meal_index = index
             break
 
@@ -488,6 +507,10 @@ def build_follow_up_focus_context(history):
             continue
 
         content = str(item.get("content", "")).strip()
+        if content == "[Фото еды]":
+            latest_meal_text = "последний обсуждавшийся приём пищи был отправлен фото"
+            break
+
         if content and is_meal_analysis_request(content):
             latest_meal_text = content
             break
@@ -619,7 +642,14 @@ async def analyze_food_text(message: types.Message):
         print("CHAT HISTORY ERROR:", repr(e))
         history = []
 
-    if not is_nutrition_related(text, history=history):
+    is_analysis_request = is_meal_analysis_request(text)
+    is_follow_up_request = is_meal_follow_up_request(text, history)
+
+    if (
+        not is_analysis_request
+        and not is_follow_up_request
+        and not is_nutrition_related(text, history=history)
+    ):
         await message.answer(
             "Я специализируюсь только на вопросах питания, здоровья, сна, тренировок и образа жизни.",
             reply_markup=main_keyboard()
@@ -633,8 +663,6 @@ async def analyze_food_text(message: types.Message):
             "content": text
         }).execute()
 
-        is_analysis_request = is_meal_analysis_request(text)
-        is_follow_up_request = is_meal_follow_up_request(text, history)
         response_instruction = (
             FOOD_ANALYSIS_FORMAT_INSTRUCTION
             if is_analysis_request
