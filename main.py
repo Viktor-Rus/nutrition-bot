@@ -8,7 +8,12 @@ from aiogram import types
 from clients import bot, dp
 from handlers.registry import register_handlers
 from keyboards import BOT_COMMANDS
-from config import ALLOWED_TELEGRAM_IDS, SUBSCRIPTION_CRON_SECRET
+from config import (
+    ALLOWED_TELEGRAM_IDS,
+    SUBSCRIPTION_AUTORENEW_ENABLED,
+    SUBSCRIPTION_AUTORENEW_INTERVAL_SECONDS,
+    SUBSCRIPTION_CRON_SECRET,
+)
 from services.payments import (
     activate_subscription_from_return,
     charge_due_subscriptions,
@@ -19,6 +24,21 @@ from services.payments import (
 app = FastAPI()
 
 register_handlers(dp)
+
+
+async def subscription_autorenew_loop():
+    await asyncio.sleep(5)
+
+    while True:
+        try:
+            result = await charge_due_subscriptions()
+            print("SUBSCRIPTION AUTORENEW TICK:", result)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print("SUBSCRIPTION AUTORENEW ERROR:", repr(e))
+
+        await asyncio.sleep(SUBSCRIPTION_AUTORENEW_INTERVAL_SECONDS)
 
 
 def get_update_user_id(data):
@@ -168,6 +188,21 @@ async def charge_due_subscriptions_endpoint(request: Request):
 @app.on_event("startup")
 async def on_startup():
     asyncio.create_task(setup_bot_menu())
+
+    if SUBSCRIPTION_AUTORENEW_ENABLED:
+        app.state.subscription_autorenew_task = asyncio.create_task(subscription_autorenew_loop())
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    task = getattr(app.state, "subscription_autorenew_task", None)
+
+    if task:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 async def setup_bot_menu():

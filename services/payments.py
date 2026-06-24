@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -11,6 +12,7 @@ from clients import bot, supabase
 from config import (
     APP_BASE_URL,
     PAYMENT_CURRENCY,
+    SUBSCRIPTION_ACCESS_GRACE_MINUTES,
     SUBSCRIPTION_MONTHLY_AMOUNT,
     SUBSCRIPTION_TRIAL_DAYS,
     YOOKASSA_SECRET_KEY,
@@ -26,6 +28,7 @@ SUBSCRIPTION_CANCEL_CONFIRM_CALLBACK = "subscriptions:cancel_confirm"
 SUBSCRIPTION_CANCEL_KEEP_CALLBACK = "subscriptions:cancel_keep"
 SUBSCRIPTION_PAYLOAD = "mealadvisor_subscription"
 YOOKASSA_API_URL = "https://api.yookassa.ru/v3"
+CHARGE_DUE_LOCK = asyncio.Lock()
 
 
 def now_utc():
@@ -320,6 +323,36 @@ def cancel_subscription(telegram_id: int):
     )
 
 
+def get_billing_grace_deadline(subscription):
+    if not subscription:
+        return None
+
+    if subscription.get("status") not in ("trialing", "active"):
+        return None
+
+    if not subscription.get("payment_method_id"):
+        return None
+
+    period_ends_at = parse_dt(subscription.get("current_period_ends_at"))
+
+    if not period_ends_at:
+        return None
+
+    return period_ends_at + timedelta(minutes=SUBSCRIPTION_ACCESS_GRACE_MINUTES)
+
+
+def is_subscription_in_billing_grace(subscription):
+    period_ends_at = parse_dt((subscription or {}).get("current_period_ends_at"))
+    grace_deadline = get_billing_grace_deadline(subscription)
+    current_time = now_utc()
+
+    return bool(
+        period_ends_at
+        and grace_deadline
+        and period_ends_at <= current_time <= grace_deadline
+    )
+
+
 def is_subscription_active(subscription):
     if not subscription:
         return False
@@ -327,7 +360,11 @@ def is_subscription_active(subscription):
     period_ends_at = parse_dt(subscription.get("current_period_ends_at"))
 
     if subscription.get("status") in ("trialing", "active"):
-        return not period_ends_at or period_ends_at > now_utc()
+        return (
+            not period_ends_at
+            or period_ends_at > now_utc()
+            or is_subscription_in_billing_grace(subscription)
+        )
 
     if subscription.get("status") == "canceled":
         return bool(period_ends_at and period_ends_at > now_utc())
@@ -343,7 +380,11 @@ def is_subscription_auto_renewing(subscription):
         return False
 
     period_ends_at = parse_dt(subscription.get("current_period_ends_at"))
-    return not period_ends_at or period_ends_at > now_utc()
+    return (
+        not period_ends_at
+        or period_ends_at > now_utc()
+        or is_subscription_in_billing_grace(subscription)
+    )
 
 
 def format_subscription_status(subscription):
@@ -368,6 +409,14 @@ def format_subscription_status(subscription):
         return "Оплата подписки обрабатывается. Доступ откроется после успешного платежа."
 
     if status == "trialing":
+        if is_subscription_in_billing_grace(subscription):
+            return (
+                "Подписка активна: бесплатная неделя завершилась, первое списание обрабатывается.\n\n"
+                f"Пробный период закончился: {trial_ends_at:%d.%m.%Y %H:%M UTC}\n"
+                f"Сумма следующего периода: {format_amount()} в месяц.\n"
+                "Доступ пока сохранён."
+            )
+
         return (
             "Подписка активна: бесплатная неделя.\n\n"
             f"Пробный период до: {trial_ends_at:%d.%m.%Y %H:%M UTC}\n"
@@ -376,6 +425,14 @@ def format_subscription_status(subscription):
         )
 
     if status == "active":
+        if is_subscription_in_billing_grace(subscription):
+            return (
+                "Подписка активна. Продление сейчас обрабатывается.\n\n"
+                f"Плановая дата списания: {next_charge_at:%d.%m.%Y %H:%M UTC}\n"
+                f"Сумма: {format_amount()} в месяц.\n"
+                "Доступ пока сохранён."
+            )
+
         return (
             "Подписка активна.\n\n"
             f"Следующее списание: {next_charge_at:%d.%m.%Y %H:%M UTC}\n"
@@ -673,7 +730,7 @@ async def handle_recurring_payment_succeeded(payment):
         return
 
     current_end = parse_dt(subscription.get("current_period_ends_at")) if subscription else None
-    base_date = max(current_end or now_utc(), now_utc())
+    base_date = current_end or now_utc()
     next_charge_at = base_date + relativedelta(months=1)
 
     update_subscription(
@@ -800,47 +857,48 @@ def get_due_subscriptions(limit=50):
 
 
 async def charge_due_subscriptions(limit=50):
-    due_subscriptions = get_due_subscriptions(limit=limit)
-    charged = 0
-    failed = 0
+    async with CHARGE_DUE_LOCK:
+        due_subscriptions = get_due_subscriptions(limit=limit)
+        charged = 0
+        failed = 0
 
-    for subscription in due_subscriptions:
-        telegram_id = subscription["telegram_id"]
+        for subscription in due_subscriptions:
+            telegram_id = subscription["telegram_id"]
 
-        try:
-            payment = create_recurring_payment(subscription)
-        except Exception as e:
-            failed += 1
-            print("RECURRING PAYMENT CREATE ERROR:", telegram_id, repr(e))
-            update_subscription(
-                telegram_id,
-                {
-                    "status": "past_due",
-                    "last_error": str(e)[:500],
-                }
-            )
-            continue
+            try:
+                payment = create_recurring_payment(subscription)
+            except Exception as e:
+                failed += 1
+                print("RECURRING PAYMENT CREATE ERROR:", telegram_id, repr(e))
+                update_subscription(
+                    telegram_id,
+                    {
+                        "status": "past_due",
+                        "last_error": str(e)[:500],
+                    }
+                )
+                continue
 
-        payment_status = payment.get("status")
+            payment_status = payment.get("status")
 
-        if payment_status == "succeeded":
-            charged += 1
-            await handle_recurring_payment_succeeded(payment)
-        elif payment_status == "canceled":
-            failed += 1
-            await handle_recurring_payment_canceled(payment)
-        else:
-            update_subscription(
-                telegram_id,
-                {
-                    "last_payment_id": payment.get("id"),
-                    "last_error": f"Unexpected payment status: {payment_status}",
-                }
-            )
+            if payment_status == "succeeded":
+                charged += 1
+                await handle_recurring_payment_succeeded(payment)
+            elif payment_status == "canceled":
+                failed += 1
+                await handle_recurring_payment_canceled(payment)
+            else:
+                update_subscription(
+                    telegram_id,
+                    {
+                        "last_payment_id": payment.get("id"),
+                        "last_error": f"Unexpected payment status: {payment_status}",
+                    }
+                )
 
-    return {
-        "ok": True,
-        "due": len(due_subscriptions),
-        "charged": charged,
-        "failed": failed,
-    }
+        return {
+            "ok": True,
+            "due": len(due_subscriptions),
+            "charged": charged,
+            "failed": failed,
+        }
