@@ -256,6 +256,54 @@ class SubscriptionFlowsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(subscription["last_error"], "insufficient_funds")
         self.assertFalse(payments.is_subscription_active(subscription))
 
+    async def test_monthly_charge_pending_is_saved_and_rescheduled(self):
+        telegram_id = 109
+        current_period_end = dt(2026, 7, 1, 9, 0)
+        self.fixed_now = current_period_end
+        self.repo.seed_subscription(
+            telegram_id,
+            status="active",
+            payment_method_id="pm_109",
+            current_period_ends_at=payments.iso_dt(current_period_end),
+            next_charge_at=payments.iso_dt(current_period_end),
+        )
+
+        with patch.object(
+            payments,
+            "create_recurring_payment",
+            return_value={
+                "id": "pay_month_pending",
+                "status": "pending",
+                "metadata": {"telegram_id": str(telegram_id)},
+                "amount": {"value": "1990.00", "currency": "RUB"},
+            },
+        ):
+            result = await payments.charge_due_subscriptions()
+
+        subscription = self.repo.get_subscription(telegram_id)
+        expected_retry_at = self.fixed_now + timedelta(
+            minutes=max(payments.SUBSCRIPTION_ACCESS_GRACE_MINUTES, 5)
+        )
+
+        self.assertEqual(result["due"], 1)
+        self.assertEqual(result["charged"], 0)
+        self.assertEqual(result["failed"], 0)
+        self.assertEqual(result["pending"], 1)
+        self.assertEqual(subscription["status"], "active")
+        self.assertEqual(subscription["last_payment_id"], "pay_month_pending")
+        self.assertEqual(subscription["last_error"], "Recurring payment pending: pending")
+        self.assertEqual(subscription["next_charge_at"], payments.iso_dt(expected_retry_at))
+        self.assertEqual(
+            self.repo.subscription_payments,
+            [
+                {
+                    "payment_id": "pay_month_pending",
+                    "status": "pending",
+                    "telegram_id": telegram_id,
+                }
+            ],
+        )
+
     async def test_cancel_subscription_keeps_access_until_period_end(self):
         telegram_id = 106
         period_end = dt(2026, 7, 10, 12, 0)

@@ -53,6 +53,11 @@ def iso_dt(value):
     return value.astimezone(timezone.utc).isoformat()
 
 
+def recurring_charge_retry_at():
+    retry_delay_minutes = max(SUBSCRIPTION_ACCESS_GRACE_MINUTES, 5)
+    return now_utc() + timedelta(minutes=retry_delay_minutes)
+
+
 def format_amount(amount_minor=SUBSCRIPTION_MONTHLY_AMOUNT):
     if PAYMENT_CURRENCY == "RUB":
         rubles = amount_minor // 100
@@ -118,6 +123,10 @@ def create_payment_method(telegram_id: int):
 
 def get_payment_method(payment_method_id: str):
     return yookassa_request("GET", f"/payment_methods/{payment_method_id}")
+
+
+def get_payment(payment_id: str):
+    return yookassa_request("GET", f"/payments/{payment_id}")
 
 
 def create_recurring_payment(subscription):
@@ -716,6 +725,33 @@ def save_subscription_payment(payment, status):
         print("SUBSCRIPTION PAYMENT SAVE ERROR:", repr(e))
 
 
+def has_saved_subscription_payment(payment_id, status):
+    if not payment_id or not status:
+        return False
+
+    try:
+        result = (
+            supabase.table("subscription_payments")
+            .select("id")
+            .eq("yookassa_payment_id", payment_id)
+            .eq("status", status)
+            .limit(1)
+            .execute()
+        )
+        return bool(result.data)
+    except Exception as e:
+        print("SUBSCRIPTION PAYMENT CHECK ERROR:", repr(e))
+        return False
+
+
+def has_unresolved_pending_charge(subscription):
+    return bool(
+        subscription
+        and subscription.get("last_payment_id")
+        and str(subscription.get("last_error") or "").startswith("Recurring payment pending:")
+    )
+
+
 async def handle_recurring_payment_succeeded(payment):
     metadata = payment.get("metadata") or {}
     telegram_id = metadata.get("telegram_id")
@@ -725,8 +761,9 @@ async def handle_recurring_payment_succeeded(payment):
 
     telegram_id = int(telegram_id)
     subscription = get_subscription(telegram_id)
+    payment_id = payment.get("id")
 
-    if subscription and subscription.get("last_payment_id") == payment.get("id"):
+    if has_saved_subscription_payment(payment_id, "succeeded"):
         return
 
     current_end = parse_dt(subscription.get("current_period_ends_at")) if subscription else None
@@ -739,7 +776,7 @@ async def handle_recurring_payment_succeeded(payment):
             "status": "active",
             "current_period_ends_at": iso_dt(next_charge_at),
             "next_charge_at": iso_dt(next_charge_at),
-            "last_payment_id": payment.get("id"),
+            "last_payment_id": payment_id,
             "last_error": None,
         }
     )
@@ -766,13 +803,17 @@ async def handle_recurring_payment_canceled(payment):
         return
 
     telegram_id = int(telegram_id)
+    payment_id = payment.get("id")
     cancellation_details = payment.get("cancellation_details") or {}
+
+    if has_saved_subscription_payment(payment_id, "canceled"):
+        return
 
     update_subscription(
         telegram_id,
         {
             "status": "past_due",
-            "last_payment_id": payment.get("id"),
+            "last_payment_id": payment_id,
             "last_error": cancellation_details.get("reason") or "payment_canceled",
         }
     )
@@ -789,6 +830,32 @@ async def handle_recurring_payment_canceled(payment):
         )
     except Exception as e:
         print("RECURRING PAYMENT CANCEL MESSAGE ERROR:", repr(e))
+
+
+def handle_recurring_payment_pending(subscription, payment):
+    telegram_id = subscription["telegram_id"]
+    payment_status = payment.get("status") or "pending"
+    retry_at = recurring_charge_retry_at()
+
+    update_subscription(
+        telegram_id,
+        {
+            "last_payment_id": payment.get("id"),
+            "last_error": f"Recurring payment pending: {payment_status}",
+            "next_charge_at": iso_dt(retry_at),
+        }
+    )
+
+    if not has_saved_subscription_payment(payment.get("id"), payment_status):
+        save_subscription_payment(payment, payment_status)
+
+    print(
+        "RECURRING PAYMENT PENDING:",
+        telegram_id,
+        payment.get("id"),
+        payment_status,
+        iso_dt(retry_at),
+    )
 
 
 async def handle_yookassa_event(payload):
@@ -861,23 +928,42 @@ async def charge_due_subscriptions(limit=50):
         due_subscriptions = get_due_subscriptions(limit=limit)
         charged = 0
         failed = 0
+        pending = 0
 
         for subscription in due_subscriptions:
             telegram_id = subscription["telegram_id"]
+            payment = None
 
-            try:
-                payment = create_recurring_payment(subscription)
-            except Exception as e:
-                failed += 1
-                print("RECURRING PAYMENT CREATE ERROR:", telegram_id, repr(e))
-                update_subscription(
-                    telegram_id,
-                    {
-                        "status": "past_due",
-                        "last_error": str(e)[:500],
-                    }
-                )
-                continue
+            if has_unresolved_pending_charge(subscription):
+                try:
+                    payment = get_payment(subscription["last_payment_id"])
+                except Exception as e:
+                    pending += 1
+                    retry_at = recurring_charge_retry_at()
+                    print("RECURRING PAYMENT RECHECK ERROR:", telegram_id, repr(e))
+                    update_subscription(
+                        telegram_id,
+                        {
+                            "last_error": str(e)[:500],
+                            "next_charge_at": iso_dt(retry_at),
+                        }
+                    )
+                    continue
+
+            if payment is None:
+                try:
+                    payment = create_recurring_payment(subscription)
+                except Exception as e:
+                    failed += 1
+                    print("RECURRING PAYMENT CREATE ERROR:", telegram_id, repr(e))
+                    update_subscription(
+                        telegram_id,
+                        {
+                            "status": "past_due",
+                            "last_error": str(e)[:500],
+                        }
+                    )
+                    continue
 
             payment_status = payment.get("status")
 
@@ -888,17 +974,13 @@ async def charge_due_subscriptions(limit=50):
                 failed += 1
                 await handle_recurring_payment_canceled(payment)
             else:
-                update_subscription(
-                    telegram_id,
-                    {
-                        "last_payment_id": payment.get("id"),
-                        "last_error": f"Unexpected payment status: {payment_status}",
-                    }
-                )
+                pending += 1
+                handle_recurring_payment_pending(subscription, payment)
 
         return {
             "ok": True,
             "due": len(due_subscriptions),
             "charged": charged,
             "failed": failed,
+            "pending": pending,
         }
