@@ -60,6 +60,21 @@ GENERAL_NUTRITION_ADVICE_INSTRUCTION = (
 )
 
 
+CAPABILITY_QUESTION_INSTRUCTION = (
+    "Пользователь спрашивает, правда ли ты можешь помочь, поможешь ли ты ему, "
+    "чем ты полезен или сомневается в твоей пользе. Ответь живо, тепло и уверенно. "
+    "Скажи прямо: да, я могу помочь в рамках питания, привычек и образа жизни. "
+    "Назови конкретные направления: мягко скорректировать рацион, улучшить самочувствие "
+    "после еды, снизить тягу к сладкому и перееданию, подобрать более удачные варианты "
+    "блюд, наладить режим, энергию, сон и маленькие реалистичные шаги. "
+    "Не обещай лечения, диагнозов или гарантированного результата. "
+    "Не используй сухую фразу 'я специализируюсь только...'. "
+    "Ответ должен звучать как нормальная человеческая поддержка, 3-6 предложений. "
+    "В конце предложи начать с одного простого шага: пусть пользователь напишет, "
+    "что ел сегодня, что хочет улучшить или что сейчас больше всего мешает."
+)
+
+
 MEAL_FOLLOW_UP_INSTRUCTION = (
     "Пользователь продолжает разговор о недавно обсуждённой еде или описывает "
     "самочувствие после неё. Отвечай как нутрициолог, который помнит предыдущий "
@@ -88,6 +103,40 @@ MEAL_FOLLOW_UP_INSTRUCTION = (
     "Если данных мало, не переходи сразу к совету 'уменьшить сахар', 'снизить масло' или "
     "'убрать соус' как к уже установленному факту."
 )
+
+
+def is_capability_question(text: str) -> bool:
+    normalized = text.lower().replace("ё", "е")
+    normalized_compact = re.sub(r"\s+", "", normalized)
+
+    markers = (
+        "ты поможешь",
+        "поможешь мне",
+        "поможешь или нет",
+        "реально поможешь",
+        "действительно поможешь",
+        "правда поможешь",
+        "можешь помочь",
+        "сможешь помочь",
+        "ты можешь помочь",
+        "чем ты поможешь",
+        "как ты поможешь",
+        "от тебя есть польза",
+        "какая от тебя польза",
+        "зачем ты нужен",
+        "что ты умеешь",
+        "чем можешь помочь",
+    )
+    compact_markers = (
+        "реальнопоможешь",
+        "такипоможешьилинет",
+        "такпоможешьилинет",
+    )
+
+    return (
+        any(marker in normalized for marker in markers)
+        or any(marker in normalized_compact for marker in compact_markers)
+    )
 
 
 def is_meal_analysis_request(text: str) -> bool:
@@ -644,14 +693,20 @@ async def analyze_food_text(message: types.Message):
 
     is_analysis_request = is_meal_analysis_request(text)
     is_follow_up_request = is_meal_follow_up_request(text, history)
+    is_capability_request = is_capability_question(text)
 
     if (
         not is_analysis_request
         and not is_follow_up_request
+        and not is_capability_request
         and not is_nutrition_related(text, history=history)
     ):
         await message.answer(
-            "Я специализируюсь только на вопросах питания, здоровья, сна, тренировок и образа жизни.",
+            (
+                "Я могу помочь с питанием, привычками, самочувствием после еды, "
+                "энергией, сном, тренировками и мягким улучшением образа жизни. "
+                "Напиши вопрос в этих темах — разберём спокойно и по делу."
+            ),
             reply_markup=main_keyboard()
         )
         return
@@ -669,7 +724,11 @@ async def analyze_food_text(message: types.Message):
             else (
                 MEAL_FOLLOW_UP_INSTRUCTION
                 if is_follow_up_request
-                else GENERAL_NUTRITION_ADVICE_INSTRUCTION
+                else (
+                    CAPABILITY_QUESTION_INSTRUCTION
+                    if is_capability_request
+                    else GENERAL_NUTRITION_ADVICE_INSTRUCTION
+                )
             )
         )
 
