@@ -6,9 +6,11 @@ from services.payments import (
     SUBSCRIPTION_CANCEL_CALLBACK,
     SUBSCRIPTION_CANCEL_CONFIRM_CALLBACK,
     SUBSCRIPTION_CANCEL_KEEP_CALLBACK,
+    SUBSCRIPTION_CHANGE_CARD_CALLBACK,
     SUBSCRIPTION_START_CALLBACK,
     SUBSCRIPTION_STATUS_CALLBACK,
     cancel_user_subscription,
+    request_subscription_payment_method_change,
     request_subscription_cancel_confirmation,
     send_subscription_status,
     start_subscription,
@@ -43,6 +45,12 @@ def register(dp: Dispatcher):
     async def subscription_status_callback(callback: types.CallbackQuery):
         await callback.answer()
         await send_subscription_status(callback.message, callback.from_user.id)
+
+    @dp.callback_query(lambda callback: callback.data == SUBSCRIPTION_CHANGE_CARD_CALLBACK)
+    async def subscription_change_card_callback(callback: types.CallbackQuery):
+        await callback.answer()
+        await clear_inline_keyboard(callback)
+        await request_subscription_payment_method_change(callback.message, callback.from_user.id)
 
     @dp.callback_query(lambda callback: callback.data == SUBSCRIPTION_CANCEL_CALLBACK)
     async def subscription_cancel_callback(callback: types.CallbackQuery):

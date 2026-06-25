@@ -91,6 +91,7 @@ class SubscriptionFlowsTest(unittest.IsolatedAsyncioTestCase):
             patch.object(payments, "update_subscription", side_effect=self.repo.update_subscription),
             patch.object(payments, "get_due_subscriptions", side_effect=self.repo.get_due_subscriptions),
             patch.object(payments, "save_subscription_payment", side_effect=self.repo.save_subscription_payment),
+            patch.object(payments, "has_saved_subscription_payment", return_value=False),
             patch.object(payments, "bot", self.fake_bot),
             patch.object(payments, "main_keyboard", return_value=None),
             patch.object(payments, "now_utc", side_effect=lambda: self.fixed_now),
@@ -326,6 +327,87 @@ class SubscriptionFlowsTest(unittest.IsolatedAsyncioTestCase):
 
         self.fixed_now = period_end + timedelta(minutes=1)
         self.assertFalse(payments.is_subscription_active(self.repo.get_subscription(telegram_id)))
+
+    async def test_replace_payment_method_keeps_active_subscription_dates(self):
+        telegram_id = 110
+        period_end = dt(2026, 7, 10, 12, 0)
+        self.fixed_now = dt(2026, 7, 1, 12, 0)
+        self.repo.seed_subscription(
+            telegram_id,
+            status="active",
+            payment_method_id="pm_old",
+            current_period_ends_at=payments.iso_dt(period_end),
+            next_charge_at=payments.iso_dt(period_end),
+            last_error="old_card_error",
+        )
+
+        await payments.handle_payment_method_active(
+            {
+                "id": "pm_new",
+                "status": "active",
+                "saved": True,
+                "metadata": {
+                    "telegram_id": str(telegram_id),
+                    "action": payments.SUBSCRIPTION_ACTION_REPLACE_PAYMENT_METHOD,
+                },
+            }
+        )
+
+        subscription = self.repo.get_subscription(telegram_id)
+
+        self.assertEqual(subscription["status"], "active")
+        self.assertEqual(subscription["payment_method_id"], "pm_new")
+        self.assertEqual(subscription["current_period_ends_at"], payments.iso_dt(period_end))
+        self.assertEqual(subscription["next_charge_at"], payments.iso_dt(period_end))
+        self.assertIsNone(subscription["last_error"])
+        self.assertTrue(payments.is_subscription_active(subscription))
+        self.fake_bot.send_message.assert_awaited()
+
+    async def test_replace_payment_method_for_past_due_charges_immediately(self):
+        telegram_id = 111
+        old_period_end = dt(2026, 6, 1, 12, 0)
+        self.fixed_now = dt(2026, 6, 5, 12, 0)
+        self.repo.seed_subscription(
+            telegram_id,
+            status="past_due",
+            payment_method_id="pm_old",
+            current_period_ends_at=payments.iso_dt(old_period_end),
+            next_charge_at=None,
+            last_error="insufficient_funds",
+        )
+
+        with patch.object(
+            payments,
+            "create_recurring_payment",
+            return_value={
+                "id": "pay_replacement_success",
+                "status": "succeeded",
+                "metadata": {"telegram_id": str(telegram_id)},
+                "amount": {"value": "1990.00", "currency": "RUB"},
+            },
+        ):
+            await payments.handle_payment_method_active(
+                {
+                    "id": "pm_new",
+                    "status": "active",
+                    "saved": True,
+                    "metadata": {
+                        "telegram_id": str(telegram_id),
+                        "action": payments.SUBSCRIPTION_ACTION_REPLACE_PAYMENT_METHOD,
+                    },
+                }
+            )
+
+        subscription = self.repo.get_subscription(telegram_id)
+        renewed_until = self.fixed_now + relativedelta(months=1)
+
+        self.assertEqual(subscription["status"], "active")
+        self.assertEqual(subscription["payment_method_id"], "pm_new")
+        self.assertEqual(subscription["current_period_ends_at"], payments.iso_dt(renewed_until))
+        self.assertEqual(subscription["next_charge_at"], payments.iso_dt(renewed_until))
+        self.assertEqual(subscription["last_payment_id"], "pay_replacement_success")
+        self.assertIsNone(subscription["last_error"])
+        self.assertTrue(payments.is_subscription_active(subscription))
 
     async def test_used_trial_cannot_be_activated_again(self):
         telegram_id = 107

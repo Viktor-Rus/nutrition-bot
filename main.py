@@ -143,6 +143,16 @@ async def subscription_return(
         </html>
         """
 
+    if activation_result == "payment_method_replaced":
+        return """
+        <html>
+            <body>
+                <h2>Карта обновлена</h2>
+                <p>Новая карта привязана к подписке. Можно вернуться в Telegram.</p>
+            </body>
+        </html>
+        """
+
     if activation_result == "payment_pending":
         return """
         <html>

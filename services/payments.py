@@ -23,10 +23,13 @@ from keyboards import main_keyboard
 
 SUBSCRIPTION_START_CALLBACK = "subscriptions:start"
 SUBSCRIPTION_STATUS_CALLBACK = "subscriptions:status"
+SUBSCRIPTION_CHANGE_CARD_CALLBACK = "subscriptions:change_card"
 SUBSCRIPTION_CANCEL_CALLBACK = "subscriptions:cancel"
 SUBSCRIPTION_CANCEL_CONFIRM_CALLBACK = "subscriptions:cancel_confirm"
 SUBSCRIPTION_CANCEL_KEEP_CALLBACK = "subscriptions:cancel_keep"
 SUBSCRIPTION_PAYLOAD = "mealadvisor_subscription"
+SUBSCRIPTION_ACTION_START = "start_subscription"
+SUBSCRIPTION_ACTION_REPLACE_PAYMENT_METHOD = "replace_payment_method"
 YOOKASSA_API_URL = "https://api.yookassa.ru/v3"
 CHARGE_DUE_LOCK = asyncio.Lock()
 
@@ -105,7 +108,7 @@ def yookassa_request(method, path, payload=None):
     return response.json()
 
 
-def create_payment_method(telegram_id: int):
+def create_payment_method(telegram_id: int, action=SUBSCRIPTION_ACTION_START):
     payload = {
         "type": "bank_card",
         "confirmation": {
@@ -115,6 +118,7 @@ def create_payment_method(telegram_id: int):
         "metadata": {
             "telegram_id": str(telegram_id),
             "payload": SUBSCRIPTION_PAYLOAD,
+            "action": action,
         },
     }
 
@@ -217,6 +221,12 @@ def start_offer_keyboard(subscription=None):
 def subscription_manage_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Сменить карту",
+                    callback_data=SUBSCRIPTION_CHANGE_CARD_CALLBACK
+                )
+            ],
             [
                 InlineKeyboardButton(
                     text="Отменить подписку",
@@ -555,6 +565,68 @@ async def start_subscription(message: types.Message, telegram_id: int):
     )
 
 
+async def request_subscription_payment_method_change(message: types.Message, telegram_id: int):
+    if not yookassa_is_configured():
+        await message.answer(
+            "Смена карты временно недоступна. Не настроены параметры ЮKassa или APP_BASE_URL.",
+            reply_markup=main_keyboard()
+        )
+        return
+
+    subscription = get_subscription(telegram_id)
+
+    if not subscription or not subscription.get("payment_method_id"):
+        await message.answer(
+            "Сначала подключи подписку и привяжи карту.",
+            reply_markup=start_offer_keyboard(subscription)
+        )
+        return
+
+    if subscription.get("status") in ("pending_confirmation", "pending_payment"):
+        await message.answer(
+            "Сейчас уже есть незавершённая привязка карты или оплата. Заверши её и попробуй снова.",
+            reply_markup=main_keyboard()
+        )
+        return
+
+    try:
+        payment_method = create_payment_method(
+            telegram_id,
+            action=SUBSCRIPTION_ACTION_REPLACE_PAYMENT_METHOD,
+        )
+    except Exception as e:
+        print("SUBSCRIPTION PAYMENT METHOD CHANGE START ERROR:", repr(e))
+        await message.answer(
+            "Не смог создать ссылку для привязки новой карты. Попробуй позже.",
+            reply_markup=main_keyboard()
+        )
+        return
+
+    confirmation_url = (payment_method.get("confirmation") or {}).get("confirmation_url")
+
+    if not confirmation_url:
+        await message.answer(
+            "ЮKassa не вернула ссылку для привязки новой карты. Попробуй позже.",
+            reply_markup=main_keyboard()
+        )
+        return
+
+    await message.answer(
+        "Чтобы сменить карту для подписки, привяжи новую карту в ЮKassa.\n\n"
+        "Текущий доступ и даты подписки не изменятся. Следующее списание пройдёт уже с новой карты.",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="Привязать новую карту",
+                        url=confirmation_url
+                    )
+                ]
+            ]
+        )
+    )
+
+
 async def send_subscription_status(message: types.Message, telegram_id: int):
     subscription = get_subscription(telegram_id)
     reply_markup = (
@@ -616,6 +688,7 @@ async def cancel_user_subscription(message: types.Message, telegram_id: int):
 async def handle_payment_method_active(payment_method):
     metadata = payment_method.get("metadata") or {}
     telegram_id = metadata.get("telegram_id")
+    action = metadata.get("action") or SUBSCRIPTION_ACTION_START
 
     if not telegram_id:
         return
@@ -625,6 +698,10 @@ async def handle_payment_method_active(payment_method):
 
     telegram_id = int(telegram_id)
     subscription = get_subscription(telegram_id)
+
+    if action == SUBSCRIPTION_ACTION_REPLACE_PAYMENT_METHOD:
+        await replace_subscription_payment_method(telegram_id, payment_method, subscription)
+        return
 
     if is_subscription_auto_renewing(subscription):
         return
@@ -703,6 +780,88 @@ async def handle_payment_method_active(payment_method):
         )
     except Exception as e:
         print("SUBSCRIPTION ACTIVATION MESSAGE ERROR:", repr(e))
+
+
+async def replace_subscription_payment_method(telegram_id: int, payment_method, subscription=None):
+    subscription = subscription or get_subscription(telegram_id)
+
+    if not subscription:
+        return
+
+    update_subscription(
+        telegram_id,
+        {
+            "payment_method_id": payment_method["id"],
+            "last_error": None,
+        }
+    )
+
+    if subscription.get("status") == "past_due":
+        update_subscription(
+            telegram_id,
+            {
+                "status": "pending_payment",
+                "current_period_ends_at": iso_dt(now_utc()),
+                "next_charge_at": None,
+            }
+        )
+
+        try:
+            payment = create_recurring_payment(get_subscription(telegram_id))
+        except Exception as e:
+            print("REPLACEMENT PAYMENT METHOD CHARGE ERROR:", repr(e))
+            update_subscription(
+                telegram_id,
+                {
+                    "status": "past_due",
+                    "last_error": "replacement_payment_method_charge_failed",
+                }
+            )
+            try:
+                await bot.send_message(
+                    chat_id=telegram_id,
+                    text=(
+                        "Новая карта привязана, но не удалось списать оплату за подписку.\n\n"
+                        "Попробуй сменить карту или подключить подписку ещё раз позже."
+                    ),
+                    reply_markup=main_keyboard()
+                )
+            except Exception as message_error:
+                print("REPLACEMENT PAYMENT METHOD CHARGE MESSAGE ERROR:", repr(message_error))
+            return
+
+        payment_status = payment.get("status")
+
+        if payment_status == "succeeded":
+            await handle_recurring_payment_succeeded(payment)
+            return
+
+        if payment_status == "canceled":
+            await handle_recurring_payment_canceled(payment)
+            return
+
+        handle_recurring_payment_pending(get_subscription(telegram_id), payment)
+        try:
+            await bot.send_message(
+                chat_id=telegram_id,
+                text=(
+                    "Новая карта привязана. Оплата подписки обрабатывается.\n\n"
+                    "Доступ откроется после успешного платежа."
+                ),
+                reply_markup=main_keyboard()
+            )
+        except Exception as e:
+            print("REPLACEMENT PAYMENT METHOD PENDING MESSAGE ERROR:", repr(e))
+        return
+
+    try:
+        await bot.send_message(
+            chat_id=telegram_id,
+            text="Карта для подписки обновлена. Следующее списание пройдёт с новой карты.",
+            reply_markup=main_keyboard()
+        )
+    except Exception as e:
+        print("REPLACEMENT PAYMENT METHOD MESSAGE ERROR:", repr(e))
 
 
 def save_subscription_payment(payment, status):
@@ -897,6 +1056,20 @@ def activate_subscription_from_return(telegram_id: int = None, payment_method_id
     ):
         resolved_telegram_id = int(resolved_telegram_id)
         subscription = get_subscription(resolved_telegram_id)
+
+        if metadata.get("action") == SUBSCRIPTION_ACTION_REPLACE_PAYMENT_METHOD:
+            update_subscription(
+                resolved_telegram_id,
+                {
+                    "payment_method_id": payment_method["id"],
+                    "last_error": None,
+                }
+            )
+
+            if subscription and subscription.get("status") == "past_due":
+                return "payment_pending"
+
+            return "payment_method_replaced"
 
         if has_used_trial(subscription):
             if subscription and subscription.get("status") == "active":
