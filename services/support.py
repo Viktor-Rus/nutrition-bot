@@ -9,7 +9,7 @@ def is_support_chat(chat_id: int):
     return SUPPORT_CHAT_ID and str(chat_id) == str(SUPPORT_CHAT_ID)
 
 
-async def send_feedback_to_support(message: types.Message, feedback_text: str):
+async def send_feedback_to_support(message: types.Message, feedback_text: str = None):
     if not SUPPORT_CHAT_ID:
         await message.answer(
             "Обратная связь временно недоступна. Попробуй позже.",
@@ -21,16 +21,25 @@ async def send_feedback_to_support(message: types.Message, feedback_text: str):
     username = f"@{user.username}" if user.username else "не указан"
     full_name = user.full_name or "не указано"
 
+    feedback_text = feedback_text if feedback_text is not None else (message.text or message.caption or "")
     support_message = (
         "Новое сообщение обратной связи\n\n"
         f"Пользователь: {full_name}\n"
         f"Username: {username}\n"
-        f"Telegram ID: {user.id}\n\n"
-        f"Сообщение:\n{feedback_text}"
+        f"Telegram ID: {user.id}"
     )
+
+    if feedback_text:
+        support_message += f"\n\nСообщение:\n{feedback_text}"
 
     try:
         await bot.send_message(chat_id=SUPPORT_CHAT_ID, text=support_message)
+        if not message.text:
+            await bot.copy_message(
+                chat_id=SUPPORT_CHAT_ID,
+                from_chat_id=message.chat.id,
+                message_id=message.message_id,
+            )
     except Exception as e:
         print("FEEDBACK SEND ERROR:", repr(e))
         await message.answer(

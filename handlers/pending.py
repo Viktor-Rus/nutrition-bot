@@ -16,6 +16,12 @@ def register(dp: Dispatcher):
         PENDING_ACTIONS.pop(message.from_user.id, None)
         await message.answer("Ок, отменил действие.", reply_markup=main_keyboard())
 
+    @dp.message(lambda message: PENDING_ACTIONS.get(message.from_user.id) == "feedback")
+    async def handle_feedback_message(message: types.Message):
+        maybe_upsert_private_user(message)
+        PENDING_ACTIONS.pop(message.from_user.id, None)
+        await send_feedback_to_support(message)
+
     @dp.message(lambda message: message.text and message.from_user.id in PENDING_ACTIONS)
     async def handle_pending_action(message: types.Message):
         maybe_upsert_private_user(message)
@@ -48,10 +54,6 @@ def register(dp: Dispatcher):
                 f"Нашёл рецепты по запросу «{text}»:",
                 reply_markup=recipe_search_results_keyboard(results)
             )
-            return
-
-        if action == "feedback":
-            await send_feedback_to_support(message, text)
             return
 
         await message.answer("Не понял действие. Попробуй ещё раз.", reply_markup=main_keyboard())
