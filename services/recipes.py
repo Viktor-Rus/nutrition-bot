@@ -162,6 +162,31 @@ def recipe_detail_keyboard(recipe_id: str):
     )
 
 
+def recipe_preview_keyboard(recipe_id: str):
+    category_id = RECIPES[recipe_id]["category"]
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Показать полный рецепт",
+                    callback_data=f"recipes:full:{recipe_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Назад к разделу",
+                    callback_data=f"recipes:cat:{category_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(text="Все разделы", callback_data="recipes:home"),
+                InlineKeyboardButton(text="Поиск", callback_data="recipes:search"),
+            ],
+        ]
+    )
+
+
 def recipe_search_results_keyboard(results):
     rows = [
         [
@@ -223,17 +248,58 @@ def format_recipe(recipe):
     return "\n\n".join(parts)
 
 
+def format_recipe_preview(recipe):
+    title_emojis = get_recipe_title_emojis(recipe)
+    parts = [
+        f"{title_emojis} <b>{escape(recipe['title'])}</b>",
+        (
+            f"⏱ <b>Время:</b> {escape(recipe['time'])}\n"
+            f"📂 <b>Раздел:</b> {escape(get_category_title(recipe['category']))}"
+        ),
+    ]
+
+    if recipe.get("servings"):
+        parts.append(f"🍽 <b>Порции:</b> {escape(recipe['servings'])}")
+
+    if recipe.get("summary"):
+        parts.append(f"✨ <b>Коротко</b>\n{escape(recipe['summary'])}")
+
+    ingredients = "\n".join([
+        f"• {escape(item)}"
+        for item in recipe["ingredients"][:5]
+    ])
+    ingredients_suffix = "\n• ..." if len(recipe["ingredients"]) > 5 else ""
+    parts.append(f"🛒 <b>Основные ингредиенты</b>\n{ingredients}{ingredients_suffix}")
+
+    return "\n\n".join(parts)
+
+
 async def send_recipe_detail(message: types.Message, recipe_id: str, recipe):
     image_path = recipe.get("image_path")
+    caption = format_recipe_preview(recipe)
 
     if image_path:
         cached_file_id = RECIPE_IMAGE_FILE_IDS.get(recipe_id)
         photo = cached_file_id or FSInputFile(image_path)
-        photo_message = await message.answer_photo(photo=photo)
+        photo_message = await message.answer_photo(
+            photo=photo,
+            caption=caption,
+            reply_markup=recipe_preview_keyboard(recipe_id),
+            parse_mode="HTML",
+        )
 
         if not cached_file_id and photo_message.photo:
             RECIPE_IMAGE_FILE_IDS[recipe_id] = photo_message.photo[-1].file_id
+        return
 
+    await message.answer(
+        caption,
+        reply_markup=recipe_preview_keyboard(recipe_id),
+        parse_mode="HTML",
+    )
+
+
+async def send_recipe_full(message: types.Message, recipe_id: str, recipe):
     await message.answer(
         format_recipe(recipe),
         reply_markup=recipe_detail_keyboard(recipe_id),

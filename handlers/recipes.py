@@ -14,9 +14,18 @@ from services.recipes import (
     recipes_by_category,
     send_recipe_detail,
     send_recipe_book,
+    send_recipe_full,
 )
 from services.users import maybe_upsert_private_user
 from state import PENDING_ACTIONS
+
+
+async def show_recipe_navigation(callback: types.CallbackQuery, text: str, reply_markup):
+    if callback.message.photo:
+        await callback.message.answer(text, reply_markup=reply_markup)
+        return
+
+    await callback.message.edit_text(text, reply_markup=reply_markup)
 
 
 def register(dp: Dispatcher):
@@ -42,9 +51,10 @@ def register(dp: Dispatcher):
             return
 
         await callback.answer()
-        await callback.message.edit_text(
+        await show_recipe_navigation(
+            callback,
             "Книга рецептов\n\nВыбери раздел или воспользуйся поиском.",
-            reply_markup=recipe_categories_keyboard()
+            recipe_categories_keyboard()
         )
 
     @dp.callback_query(lambda callback: callback.data == "recipes:search")
@@ -72,15 +82,17 @@ def register(dp: Dispatcher):
         await callback.answer()
 
         if not category_recipes:
-            await callback.message.edit_text(
+            await show_recipe_navigation(
+                callback,
                 f"{title}\n\nВ этом разделе пока нет рецептов.",
-                reply_markup=recipe_categories_keyboard()
+                recipe_categories_keyboard()
             )
             return
 
-        await callback.message.edit_text(
+        await show_recipe_navigation(
+            callback,
             f"{title}\n\nВыбери рецепт:",
-            reply_markup=recipe_list_keyboard(category_id)
+            recipe_list_keyboard(category_id)
         )
 
     @dp.callback_query(lambda callback: (callback.data or "").startswith("recipes:view:"))
@@ -101,3 +113,22 @@ def register(dp: Dispatcher):
             return
 
         await send_recipe_detail(callback.message, recipe_id, recipe)
+
+    @dp.callback_query(lambda callback: (callback.data or "").startswith("recipes:full:"))
+    async def recipes_full_callback(callback: types.CallbackQuery):
+        if not await require_recipes_subscription_callback(callback):
+            return
+
+        recipe_id = callback.data.split(":", maxsplit=2)[2]
+        recipe = RECIPES.get(recipe_id)
+
+        await callback.answer()
+
+        if not recipe:
+            await callback.message.answer(
+                "Не нашёл этот рецепт. Вернись к разделам и выбери другой.",
+                reply_markup=recipe_categories_keyboard()
+            )
+            return
+
+        await send_recipe_full(callback.message, recipe_id, recipe)
