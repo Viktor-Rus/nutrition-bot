@@ -349,6 +349,46 @@ class SubscriptionFlowsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(subscription["status"], "trialing")
         self.assertFalse(payments.is_subscription_active(subscription))
 
+    async def test_active_free_trial_can_start_paid_subscription_checkout(self):
+        telegram_id = 114
+        trial_start = dt(2026, 6, 1, 7, 13)
+        trial_end = trial_start + timedelta(days=payments.SUBSCRIPTION_TRIAL_DAYS)
+        self.fixed_now = trial_start + timedelta(days=1)
+        self.repo.seed_subscription(
+            telegram_id,
+            status="trialing",
+            payment_method_id=None,
+            trial_starts_at=payments.iso_dt(trial_start),
+            trial_ends_at=payments.iso_dt(trial_end),
+            current_period_ends_at=payments.iso_dt(trial_end),
+            next_charge_at=None,
+        )
+        message = AsyncMock()
+
+        with (
+            patch.object(payments, "yookassa_is_configured", return_value=True),
+            patch.object(
+                payments,
+                "create_payment_method",
+                return_value={
+                    "id": "pm_114",
+                    "confirmation": {"confirmation_url": "https://pay.example/checkout"},
+                },
+            ) as create_payment_method,
+        ):
+            await payments.start_subscription(message, telegram_id)
+
+        subscription = self.repo.get_subscription(telegram_id)
+
+        create_payment_method.assert_called_once_with(telegram_id)
+        self.assertEqual(subscription["status"], "pending_confirmation")
+        self.assertEqual(subscription["payment_method_id"], "pm_114")
+        self.assertEqual(subscription["trial_starts_at"], payments.iso_dt(trial_start))
+        self.assertEqual(subscription["trial_ends_at"], payments.iso_dt(trial_end))
+        self.assertEqual(subscription["current_period_ends_at"], payments.iso_dt(trial_end))
+        self.assertIsNone(subscription["next_charge_at"])
+        message.answer.assert_awaited_once()
+
     async def test_trial_expiring_reminder_is_sent_once_one_day_before_end(self):
         telegram_id = 113
         trial_start = dt(2026, 6, 1, 7, 13)

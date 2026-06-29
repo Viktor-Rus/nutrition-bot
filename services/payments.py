@@ -523,6 +523,11 @@ def format_subscription_status(subscription):
 async def start_subscription(message: types.Message, telegram_id: int):
     subscription = get_subscription(telegram_id)
     trial_used = has_used_trial(subscription)
+    is_free_trial_without_card = bool(
+        subscription
+        and subscription.get("status") == "trialing"
+        and not subscription.get("payment_method_id")
+    )
 
     if is_subscription_auto_renewing(subscription):
         await message.answer(
@@ -531,7 +536,11 @@ async def start_subscription(message: types.Message, telegram_id: int):
         )
         return
 
-    if is_subscription_active(subscription) and subscription.get("status") != "canceled":
+    if (
+        is_subscription_active(subscription)
+        and subscription.get("status") != "canceled"
+        and not is_free_trial_without_card
+    ):
         await message.answer(
             format_subscription_status(subscription),
             reply_markup=main_keyboard()
