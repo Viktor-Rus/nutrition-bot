@@ -1172,6 +1172,21 @@ def get_trial_reminder_subscriptions(limit=50):
     return result.data or []
 
 
+def get_expired_free_trial_subscriptions(limit=50):
+    result = (
+        supabase.table("subscriptions")
+        .select("*")
+        .eq("status", "trialing")
+        .is_("payment_method_id", "null")
+        .is_("trial_ended_notified_at", "null")
+        .lte("trial_ends_at", iso_dt(now_utc()))
+        .limit(limit)
+        .execute()
+    )
+
+    return result.data or []
+
+
 async def send_trial_expiring_reminders(limit=50):
     subscriptions = get_trial_reminder_subscriptions(limit=limit)
     sent = 0
@@ -1200,6 +1215,42 @@ async def send_trial_expiring_reminders(limit=50):
         except Exception as e:
             failed += 1
             print("TRIAL EXPIRING REMINDER ERROR:", telegram_id, repr(e))
+
+    return {
+        "due": len(subscriptions),
+        "sent": sent,
+        "failed": failed,
+    }
+
+
+async def send_expired_free_trial_notifications(limit=50):
+    subscriptions = get_expired_free_trial_subscriptions(limit=limit)
+    sent = 0
+    failed = 0
+
+    for subscription in subscriptions:
+        telegram_id = subscription["telegram_id"]
+
+        try:
+            await bot.send_message(
+                chat_id=telegram_id,
+                text=(
+                    "Пробный период истёк.\n\n"
+                    "Функции бота сейчас недоступны. Чтобы снова пользоваться анализом еды, "
+                    "рецептами и рекомендациями, подключи подписку."
+                ),
+                reply_markup=start_offer_keyboard(subscription)
+            )
+            update_subscription(
+                telegram_id,
+                {
+                    "trial_ended_notified_at": iso_dt(now_utc()),
+                }
+            )
+            sent += 1
+        except Exception as e:
+            failed += 1
+            print("TRIAL ENDED NOTIFICATION ERROR:", telegram_id, repr(e))
 
     return {
         "due": len(subscriptions),
@@ -1274,9 +1325,11 @@ async def charge_due_subscriptions(limit=50):
 async def run_subscription_maintenance(limit=50):
     charge_result = await charge_due_subscriptions(limit=limit)
     trial_reminders = await send_trial_expiring_reminders(limit=limit)
+    expired_trial_notifications = await send_expired_free_trial_notifications(limit=limit)
 
     return {
         "ok": True,
         "charge_due": charge_result,
         "trial_reminders": trial_reminders,
+        "expired_trial_notifications": expired_trial_notifications,
     }

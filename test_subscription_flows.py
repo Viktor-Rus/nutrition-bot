@@ -30,6 +30,7 @@ class FakeRepo:
             "last_error": None,
             "canceled_at": None,
             "trial_reminded_at": None,
+            "trial_ended_notified_at": None,
             "created_at": payments.iso_dt(dt(2026, 1, 1)),
             "updated_at": payments.iso_dt(dt(2026, 1, 1)),
         }
@@ -93,6 +94,27 @@ class FakeRepo:
         due.sort(key=lambda item: item["telegram_id"])
         return due[:limit]
 
+    def get_expired_free_trial_subscriptions(self, limit=50):
+        current_time = payments.now_utc()
+        due = []
+
+        for row in self.subscriptions.values():
+            if row.get("status") != "trialing":
+                continue
+
+            if row.get("payment_method_id"):
+                continue
+
+            if row.get("trial_ended_notified_at"):
+                continue
+
+            trial_ends_at = payments.parse_dt(row.get("trial_ends_at"))
+            if trial_ends_at and trial_ends_at <= current_time:
+                due.append(copy.deepcopy(row))
+
+        due.sort(key=lambda item: item["telegram_id"])
+        return due[:limit]
+
     def save_subscription_payment(self, payment, status):
         self.subscription_payments.append(
             {
@@ -117,6 +139,11 @@ class SubscriptionFlowsTest(unittest.IsolatedAsyncioTestCase):
                 payments,
                 "get_trial_reminder_subscriptions",
                 side_effect=self.repo.get_trial_reminder_subscriptions,
+            ),
+            patch.object(
+                payments,
+                "get_expired_free_trial_subscriptions",
+                side_effect=self.repo.get_expired_free_trial_subscriptions,
             ),
             patch.object(payments, "save_subscription_payment", side_effect=self.repo.save_subscription_payment),
             patch.object(payments, "has_saved_subscription_payment", return_value=False),
@@ -412,6 +439,34 @@ class SubscriptionFlowsTest(unittest.IsolatedAsyncioTestCase):
         self.fake_bot.send_message.assert_awaited_once()
 
         second_result = await payments.send_trial_expiring_reminders()
+
+        self.assertEqual(second_result, {"due": 0, "sent": 0, "failed": 0})
+        self.fake_bot.send_message.assert_awaited_once()
+
+    async def test_expired_free_trial_notification_is_sent_once(self):
+        telegram_id = 115
+        trial_start = dt(2026, 6, 1, 7, 13)
+        trial_end = trial_start + timedelta(days=payments.SUBSCRIPTION_TRIAL_DAYS)
+        self.fixed_now = trial_end + timedelta(minutes=1)
+        self.repo.seed_subscription(
+            telegram_id,
+            status="trialing",
+            payment_method_id=None,
+            trial_starts_at=payments.iso_dt(trial_start),
+            trial_ends_at=payments.iso_dt(trial_end),
+            current_period_ends_at=payments.iso_dt(trial_end),
+            next_charge_at=None,
+        )
+
+        result = await payments.send_expired_free_trial_notifications()
+        subscription = self.repo.get_subscription(telegram_id)
+
+        self.assertEqual(result, {"due": 1, "sent": 1, "failed": 0})
+        self.assertEqual(subscription["trial_ended_notified_at"], payments.iso_dt(self.fixed_now))
+        self.assertFalse(payments.is_subscription_active(subscription))
+        self.fake_bot.send_message.assert_awaited_once()
+
+        second_result = await payments.send_expired_free_trial_notifications()
 
         self.assertEqual(second_result, {"due": 0, "sent": 0, "failed": 0})
         self.fake_bot.send_message.assert_awaited_once()
