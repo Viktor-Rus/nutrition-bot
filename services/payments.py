@@ -32,6 +32,7 @@ SUBSCRIPTION_ACTION_START = "start_subscription"
 SUBSCRIPTION_ACTION_REPLACE_PAYMENT_METHOD = "replace_payment_method"
 YOOKASSA_API_URL = "https://api.yookassa.ru/v3"
 CHARGE_DUE_LOCK = asyncio.Lock()
+TRIAL_END_REMINDER_LEAD_TIME = timedelta(days=1)
 
 
 def now_utc():
@@ -182,8 +183,7 @@ def start_offer_text(subscription=None):
         "👣 Предлагает маленькие шаги вместо резких диет\n"
         "🍔 Подсказывает, как снизить последствия менее полезной еды без чувства вины\n"
         "📚 Даёт доступ к книге рецептов\n\n"
-        f"Первая неделя бесплатно, затем {format_amount()} в месяц. "
-        "Карту нужно привязать сразу, списание начнётся после пробного периода."
+        f"Первая неделя бесплатно без привязки карты. Затем подписка {format_amount()} в месяц."
     )
 
 
@@ -305,6 +305,32 @@ def save_pending_subscription(telegram_id: int, payment_method, existing_subscri
     })
 
 
+def activate_free_trial(telegram_id: int):
+    existing_subscription = get_subscription(telegram_id)
+
+    if existing_subscription and existing_subscription.get("status") in ("trialing", "active"):
+        return
+
+    if has_used_trial(existing_subscription):
+        return
+
+    started_at = now_utc()
+    trial_ends_at = started_at + timedelta(days=SUBSCRIPTION_TRIAL_DAYS)
+
+    upsert_subscription({
+        "telegram_id": telegram_id,
+        "payment_method_id": None,
+        "status": "trialing",
+        "trial_starts_at": iso_dt(started_at),
+        "trial_ends_at": iso_dt(trial_ends_at),
+        "current_period_ends_at": iso_dt(trial_ends_at),
+        "next_charge_at": None,
+        "last_payment_id": None,
+        "last_error": None,
+        "updated_at": iso_dt(started_at),
+    })
+
+
 def activate_subscription(telegram_id: int, payment_method_id: str):
     existing_subscription = get_subscription(telegram_id)
 
@@ -398,6 +424,9 @@ def is_subscription_auto_renewing(subscription):
     if subscription.get("status") not in ("trialing", "active"):
         return False
 
+    if not subscription.get("payment_method_id"):
+        return False
+
     period_ends_at = parse_dt(subscription.get("current_period_ends_at"))
     return (
         not period_ends_at
@@ -428,6 +457,21 @@ def format_subscription_status(subscription):
         return "Оплата подписки обрабатывается. Доступ откроется после успешного платежа."
 
     if status == "trialing":
+        if not subscription.get("payment_method_id"):
+            if period_ends_at and period_ends_at <= now_utc():
+                return (
+                    "Бесплатный период закончился.\n\n"
+                    "Чтобы сохранить доступ к анализу еды, рецептам и рекомендациям, "
+                    f"подключи подписку {format_amount()} в месяц."
+                )
+
+            return (
+                "Подписка активна: бесплатная неделя.\n\n"
+                f"Пробный период до: {trial_ends_at:%d.%m.%Y %H:%M UTC}\n"
+                "Карту сейчас привязывать не нужно. После окончания пробного периода "
+                f"можно будет подключить подписку {format_amount()} в месяц."
+            )
+
         if is_subscription_in_billing_grace(subscription):
             return (
                 "Подписка активна: бесплатная неделя завершилась, первое списание обрабатывается.\n\n"
@@ -477,13 +521,6 @@ def format_subscription_status(subscription):
 
 
 async def start_subscription(message: types.Message, telegram_id: int):
-    if not yookassa_is_configured():
-        await message.answer(
-            "Подписка временно недоступна. Не настроены параметры ЮKassa или APP_BASE_URL.",
-            reply_markup=main_keyboard()
-        )
-        return
-
     subscription = get_subscription(telegram_id)
     trial_used = has_used_trial(subscription)
 
@@ -497,6 +534,32 @@ async def start_subscription(message: types.Message, telegram_id: int):
     if is_subscription_active(subscription) and subscription.get("status") != "canceled":
         await message.answer(
             format_subscription_status(subscription),
+            reply_markup=main_keyboard()
+        )
+        return
+
+    if not trial_used:
+        activate_free_trial(telegram_id)
+        subscription = get_subscription(telegram_id)
+        trial_ends_at = parse_dt(subscription.get("trial_ends_at")) if subscription else None
+        trial_note = (
+            f"\n\nПробный период до: {trial_ends_at:%d.%m.%Y %H:%M UTC}."
+            if trial_ends_at
+            else ""
+        )
+
+        await message.answer(
+            "Бесплатная неделя активирована. Карту сейчас привязывать не нужно.\n\n"
+            "Можно пользоваться анализом еды, рецептами и рекомендациями."
+            f"{trial_note}\n\n"
+            "За день до окончания я напомню подключить подписку, если захочешь сохранить доступ.",
+            reply_markup=main_keyboard()
+        )
+        return
+
+    if not yookassa_is_configured():
+        await message.answer(
+            "Подписка временно недоступна. Не настроены параметры ЮKassa или APP_BASE_URL.",
             reply_markup=main_keyboard()
         )
         return
@@ -521,42 +584,24 @@ async def start_subscription(message: types.Message, telegram_id: int):
         )
         return
 
-    if trial_used:
-        period_ends_at = parse_dt(subscription.get("current_period_ends_at")) if subscription else None
-        access_note = ""
-        if subscription and subscription.get("status") == "canceled" and period_ends_at and period_ends_at > now_utc():
-            access_note = (
-                f"\n\nСейчас доступ уже сохранён до {period_ends_at:%d.%m.%Y %H:%M UTC}. "
-                "Оплаченный месяц добавится после этой даты."
-            )
-
-        await message.answer(
-            "Чтобы подключить подписку, привяжи карту в ЮKassa.\n\n"
-            "Бесплатный период уже был использован, поэтому после привязки карты "
-            f"сразу спишется {format_amount()} за первый месяц."
-            f"{access_note}",
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        InlineKeyboardButton(
-                            text="Перейти к оплате",
-                            url=confirmation_url
-                        )
-                    ]
-                ]
-            )
+    period_ends_at = parse_dt(subscription.get("current_period_ends_at")) if subscription else None
+    access_note = ""
+    if subscription and subscription.get("status") == "canceled" and period_ends_at and period_ends_at > now_utc():
+        access_note = (
+            f"\n\nСейчас доступ уже сохранён до {period_ends_at:%d.%m.%Y %H:%M UTC}. "
+            "Оплаченный месяц добавится после этой даты."
         )
-        return
 
     await message.answer(
-        "Чтобы включить бесплатную неделю, привяжи карту в ЮKassa.\n\n"
-        f"Сейчас списания не будет. Через {SUBSCRIPTION_TRIAL_DAYS} дней начнётся подписка "
-        f"{format_amount()} в месяц.",
+        "Чтобы подключить подписку, привяжи карту в ЮKassa.\n\n"
+        "Бесплатный период уже был использован, поэтому после привязки карты "
+        f"сразу спишется {format_amount()} за первый месяц."
+        f"{access_note}",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
-                        text="Привязать карту",
+                        text="Перейти к оплате",
                         url=confirmation_url
                     )
                 ]
@@ -707,11 +752,15 @@ async def handle_payment_method_active(payment_method):
         return
 
     if has_used_trial(subscription) and subscription.get("status") == "pending_confirmation":
+        period_ends_at = parse_dt(subscription.get("current_period_ends_at"))
+        paid_period_base = period_ends_at if period_ends_at and period_ends_at > now_utc() else now_utc()
+
         update_subscription(
             telegram_id,
             {
                 "payment_method_id": payment_method["id"],
                 "status": "pending_payment",
+                "current_period_ends_at": iso_dt(paid_period_base),
                 "last_error": None,
             }
         )
@@ -1096,6 +1145,60 @@ def get_due_subscriptions(limit=50):
     return result.data or []
 
 
+def get_trial_reminder_subscriptions(limit=50):
+    reminder_window_ends_at = now_utc() + TRIAL_END_REMINDER_LEAD_TIME
+
+    result = (
+        supabase.table("subscriptions")
+        .select("*")
+        .eq("status", "trialing")
+        .is_("payment_method_id", "null")
+        .is_("trial_reminded_at", "null")
+        .gt("trial_ends_at", iso_dt(now_utc()))
+        .lte("trial_ends_at", iso_dt(reminder_window_ends_at))
+        .limit(limit)
+        .execute()
+    )
+
+    return result.data or []
+
+
+async def send_trial_expiring_reminders(limit=50):
+    subscriptions = get_trial_reminder_subscriptions(limit=limit)
+    sent = 0
+    failed = 0
+
+    for subscription in subscriptions:
+        telegram_id = subscription["telegram_id"]
+
+        try:
+            await bot.send_message(
+                chat_id=telegram_id,
+                text=(
+                    "Бесплатный период скоро закончится.\n\n"
+                    "Чтобы сохранить доступ к анализу еды, рецептам и рекомендациям, "
+                    "подключи подписку."
+                ),
+                reply_markup=start_offer_keyboard(subscription)
+            )
+            update_subscription(
+                telegram_id,
+                {
+                    "trial_reminded_at": iso_dt(now_utc()),
+                }
+            )
+            sent += 1
+        except Exception as e:
+            failed += 1
+            print("TRIAL EXPIRING REMINDER ERROR:", telegram_id, repr(e))
+
+    return {
+        "due": len(subscriptions),
+        "sent": sent,
+        "failed": failed,
+    }
+
+
 async def charge_due_subscriptions(limit=50):
     async with CHARGE_DUE_LOCK:
         due_subscriptions = get_due_subscriptions(limit=limit)
@@ -1157,3 +1260,14 @@ async def charge_due_subscriptions(limit=50):
             "failed": failed,
             "pending": pending,
         }
+
+
+async def run_subscription_maintenance(limit=50):
+    charge_result = await charge_due_subscriptions(limit=limit)
+    trial_reminders = await send_trial_expiring_reminders(limit=limit)
+
+    return {
+        "ok": True,
+        "charge_due": charge_result,
+        "trial_reminders": trial_reminders,
+    }

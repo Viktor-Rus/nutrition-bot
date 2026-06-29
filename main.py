@@ -16,8 +16,8 @@ from config import (
 )
 from services.payments import (
     activate_subscription_from_return,
-    charge_due_subscriptions,
     handle_yookassa_event,
+    run_subscription_maintenance,
 )
 
 
@@ -31,8 +31,8 @@ async def subscription_autorenew_loop():
 
     while True:
         try:
-            result = await charge_due_subscriptions()
-            print("SUBSCRIPTION AUTORENEW TICK:", result)
+            result = await run_subscription_maintenance()
+            print("SUBSCRIPTION MAINTENANCE TICK:", result)
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -192,7 +192,7 @@ async def charge_due_subscriptions_endpoint(request: Request):
         if provided_secret != SUBSCRIPTION_CRON_SECRET:
             raise HTTPException(status_code=403, detail="Forbidden")
 
-    return await charge_due_subscriptions()
+    return await run_subscription_maintenance()
 
 
 @app.on_event("startup")
