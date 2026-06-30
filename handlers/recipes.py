@@ -22,10 +22,12 @@ from state import PENDING_ACTIONS
 
 async def show_recipe_navigation(callback: types.CallbackQuery, text: str, reply_markup):
     if callback.message.photo:
-        await callback.message.edit_caption(
-            caption=text,
-            reply_markup=reply_markup,
-        )
+        try:
+            await callback.message.delete()
+        except Exception as e:
+            print("RECIPE CARD DELETE ERROR:", repr(e))
+
+        await callback.message.answer(text, reply_markup=reply_markup)
         return
 
     await callback.message.edit_text(text, reply_markup=reply_markup)
