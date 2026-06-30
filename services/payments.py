@@ -15,6 +15,12 @@ from config import (
     SUBSCRIPTION_ACCESS_GRACE_MINUTES,
     SUBSCRIPTION_MONTHLY_AMOUNT,
     SUBSCRIPTION_TRIAL_DAYS,
+    YOOKASSA_RECEIPT_CUSTOMER_EMAIL,
+    YOOKASSA_RECEIPT_CUSTOMER_PHONE,
+    YOOKASSA_RECEIPT_PAYMENT_MODE,
+    YOOKASSA_RECEIPT_PAYMENT_SUBJECT,
+    YOOKASSA_RECEIPT_TAX_SYSTEM_CODE,
+    YOOKASSA_RECEIPT_VAT_CODE,
     YOOKASSA_SECRET_KEY,
     YOOKASSA_SHOP_ID,
 )
@@ -79,6 +85,53 @@ def amount_to_yookassa_value(amount_minor):
     return str(Decimal(amount_minor) / Decimal(100))
 
 
+def yookassa_receipt_customer():
+    customer = {}
+
+    if YOOKASSA_RECEIPT_CUSTOMER_EMAIL:
+        customer["email"] = YOOKASSA_RECEIPT_CUSTOMER_EMAIL
+
+    if YOOKASSA_RECEIPT_CUSTOMER_PHONE:
+        customer["phone"] = YOOKASSA_RECEIPT_CUSTOMER_PHONE
+
+    return customer
+
+
+def build_subscription_receipt(telegram_id: int, amount_minor=SUBSCRIPTION_MONTHLY_AMOUNT):
+    customer = yookassa_receipt_customer()
+
+    if not customer:
+        print(
+            "YOOKASSA RECEIPT SKIPPED: set YOOKASSA_RECEIPT_CUSTOMER_EMAIL "
+            "or YOOKASSA_RECEIPT_CUSTOMER_PHONE"
+        )
+        return None
+
+    amount = {
+        "value": amount_to_yookassa_value(amount_minor),
+        "currency": PAYMENT_CURRENCY,
+    }
+
+    receipt = {
+        "customer": customer,
+        "items": [
+            {
+                "description": f"MealAdvisor Premium, подписка на 1 месяц для Telegram ID {telegram_id}",
+                "quantity": "1.00",
+                "amount": amount,
+                "vat_code": YOOKASSA_RECEIPT_VAT_CODE,
+                "payment_mode": YOOKASSA_RECEIPT_PAYMENT_MODE,
+                "payment_subject": YOOKASSA_RECEIPT_PAYMENT_SUBJECT,
+            }
+        ],
+    }
+
+    if YOOKASSA_RECEIPT_TAX_SYSTEM_CODE:
+        receipt["tax_system_code"] = int(YOOKASSA_RECEIPT_TAX_SYSTEM_CODE)
+
+    return receipt
+
+
 def yookassa_is_configured():
     return bool(YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY and APP_BASE_URL)
 
@@ -137,12 +190,13 @@ def get_payment(payment_id: str):
 def create_recurring_payment(subscription):
     telegram_id = subscription["telegram_id"]
     payment_method_id = subscription["payment_method_id"]
+    amount = {
+        "value": amount_to_yookassa_value(SUBSCRIPTION_MONTHLY_AMOUNT),
+        "currency": PAYMENT_CURRENCY,
+    }
 
     payload = {
-        "amount": {
-            "value": amount_to_yookassa_value(SUBSCRIPTION_MONTHLY_AMOUNT),
-            "currency": PAYMENT_CURRENCY,
-        },
+        "amount": amount,
         "capture": True,
         "payment_method_id": payment_method_id,
         "description": f"MealAdvisor Premium, подписка на 1 месяц для Telegram ID {telegram_id}",
@@ -152,6 +206,10 @@ def create_recurring_payment(subscription):
             "payload": SUBSCRIPTION_PAYLOAD,
         },
     }
+    receipt = build_subscription_receipt(telegram_id)
+
+    if receipt:
+        payload["receipt"] = receipt
 
     return yookassa_request("POST", "/payments", payload)
 
@@ -472,8 +530,7 @@ def format_subscription_status(subscription):
             return (
                 "Подписка активна: бесплатная неделя.\n\n"
                 f"Пробный период до: {trial_ends_at:%d.%m.%Y %H:%M UTC}\n"
-                "Карту сейчас привязывать не нужно. После окончания пробного периода "
-                f"можно будет подключить подписку {format_amount()} в месяц."
+                f"После окончания пробного периода можно будет подключить подписку {format_amount()} в месяц."
             )
 
         if is_subscription_in_billing_grace(subscription):
@@ -562,7 +619,7 @@ async def start_subscription(message: types.Message, telegram_id: int):
         )
 
         await message.answer(
-            "Бесплатная неделя активирована. Карту сейчас привязывать не нужно.\n\n"
+            "Бесплатная неделя активирована.\n\n"
             "Можно пользоваться анализом еды, рецептами и рекомендациями."
             f"{trial_note}\n\n"
             "За день до окончания я напомню подключить подписку, если захочешь сохранить доступ.",

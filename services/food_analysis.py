@@ -19,13 +19,20 @@ FOOD_ANALYSIS_FORMAT_INSTRUCTION = (
     "Для анализа еды отвечай в коротком визуально лёгком формате: "
     "🍽️ Что это, ⚠️ Оценка, ✅ Что уже хорошо, 🔧 Как улучшить, "
     "👣 Маленький шаг, 💬 Без перфекционизма. "
+    "Этот шаблон не нужно заполнять механически: если какой-то блок звучит искусственно "
+    "или не добавляет пользы, сократи его или пропусти. Пиши на 'ты', живо и по-человечески, "
+    "как спокойный нутрициолог в переписке, а не как анкета. "
     "Если приём пищи явно слабый для здоровья: много сахара, ультра-переработанная еда, "
     "кофе натощак, алкоголь, курение рядом с едой, отсутствие белка/клетчатки или сильная "
     "сахарная нагрузка — честно скажи, что такой вариант лучше не делать регулярным "
     "и по возможности исключить/заменить. Не преуменьшай вред и не выдумывай плюсы. "
     "В блоке '✅ Что уже хорошо' указывай только реальные плюсы; если их почти нет, "
-    "напиши коротко: 'сильных сторон мало' и перейди к улучшениям. "
+    "лучше пропусти блок или напиши естественно: 'из плюсов — ...', если хотя бы один плюс есть. "
+    "Не используй сухую фразу 'сильных сторон мало'. "
     "В блоке '🔧 Как улучшить' не предлагай изменения только ради заполнения шаблона. "
+    "Давай 1-3 конкретных улучшения под ситуацию: не просто 'добавь овощи', а какие именно "
+    "варианты подойдут к этому блюду: салат, зелень, огурцы, тушёные овощи, вода, чай, "
+    "безалкогольный напиток или другая уместная замена. "
     "Если приём пищи уже выглядит удачно и без очевидных слабых мест, так и скажи: "
     "'здесь улучшения не обязательны' или 'существенно улучшать ничего не нужно'. "
     "Не считай любой жареный, картофельный, зерновой, молочный или ресторанный элемент "
@@ -51,6 +58,8 @@ FOOD_ANALYSIS_FORMAT_INSTRUCTION = (
     "запрещённого продукта и не пиши 'нет X, это хорошо'. Если конфликт есть, коротко скажи: "
     "в составе есть нежелательный для пользователя продукт/компонент, и предложи замену. "
     "Не называй этот продукт плюсом и не советуй увеличивать его количество. "
+    "Если в памяти пользователя есть непереносимость или запрет, а продукт/алкоголь присутствует "
+    "в блюде, называй это главным конфликтом с его ограничением и предлагай понятную замену. "
     "Блок '👣 Маленький шаг' тоже не обязателен любой ценой: если улучшение не требуется, "
     "можно честно написать, что маленький шаг здесь не нужен и приём пищи уже ок. "
     "Критикуй не пользователя, а сам состав приёма пищи. "
@@ -70,6 +79,18 @@ GENERAL_NUTRITION_ADVICE_INSTRUCTION = (
     "до, во время и после без самобичевания. "
     "Не считай калории и БЖУ, если пользователь прямо не просит. "
     "Учитывай сохранённые факты о пользователе."
+)
+
+
+CONTINUE_ASSISTANT_OFFER_INSTRUCTION = (
+    "Пользователь коротко согласился на твоё предыдущее предложение: например 'помоги', "
+    "'давай', 'подбери', 'расскажи', 'составь'. Не спрашивай заново, с чем нужна помощь. "
+    "Посмотри на последние сообщения и продолжи именно тот сценарий, который ты сам предложил: "
+    "если предлагал составить рацион — составь примерный рацион; если предлагал подобрать блюда — "
+    "подбери конкретные блюда; если предлагал рецепты — дай варианты рецептов. "
+    "Если данных мало, сделай разумный стартовый вариант и в конце задай максимум 1-2 уточняющих "
+    "вопроса для точной настройки. Учитывай сохранённые факты пользователя и не советуй то, что "
+    "конфликтует с его ограничениями. Пиши конкретно, на 'ты', без фразы 'расскажи, с чем нужна помощь'."
 )
 
 
@@ -319,6 +340,13 @@ def has_recent_assistant_offer_context(history) -> bool:
         "могу помочь с советами",
         "если нужно, могу помочь",
         "если хочешь, могу помочь",
+        "составить примерный рацион",
+        "составить рацион",
+        "подобрать конкретные блюда",
+        "подобрать блюда",
+        "подобрать варианты",
+        "помочь с рецептами",
+        "план набора мышечной массы",
         "по выбору",
         "по приготовлению",
         "что сделать сейчас",
@@ -328,7 +356,34 @@ def has_recent_assistant_offer_context(history) -> bool:
     return any(marker in recent_assistant_text for marker in assistant_offer_markers)
 
 
+def is_assistant_offer_acceptance(text: str, history) -> bool:
+    normalized = text.lower().replace("ё", "е").strip()
+    compact_text = normalized.strip(" .!?")
+
+    acceptance_replies = (
+        "помоги",
+        "помочь",
+        "давай",
+        "да",
+        "ок",
+        "окей",
+        "хорошо",
+        "подскажи",
+        "подбери",
+        "составь",
+        "расскажи",
+        "хочу",
+        "нужно",
+    )
+
+    return (
+        compact_text in acceptance_replies
+        and has_recent_assistant_offer_context(history)
+    )
+
+
 def normalize_good_meal_analysis(answer: str) -> str:
+    answer = normalize_telegram_markdown(answer)
     normalized = answer.lower().replace("ё", "е")
 
     positive_assessment_markers = (
@@ -340,7 +395,6 @@ def normalize_good_meal_analysis(answer: str) -> str:
     )
     strong_negative_markers = (
         "лучше не делать регулярным",
-        "сильных сторон мало",
         "слабый прием пищи",
         "слабый приём пищи",
         "много сахара",
@@ -422,6 +476,29 @@ def normalize_good_meal_analysis(answer: str) -> str:
     )
 
     return answer
+
+
+def normalize_telegram_markdown(answer: str) -> str:
+    if not answer:
+        return answer
+
+    lines = []
+    for line in answer.splitlines():
+        stripped = line.strip()
+
+        heading_match = re.match(r"^#{1,6}\s+(.+)$", stripped)
+        if heading_match:
+            lines.append(f"🔹 {heading_match.group(1).strip()}")
+            continue
+
+        bullet_match = re.match(r"^[-*]\s+(.+)$", stripped)
+        if bullet_match:
+            lines.append(f"• {bullet_match.group(1).strip()}")
+            continue
+
+        lines.append(line)
+
+    return "\n".join(lines)
 
 
 def is_meal_follow_up_request(text: str, history) -> bool:
@@ -618,6 +695,7 @@ async def analyze_food_photo(message: types.Message):
                         "text": (
                             "Проанализируй фото еды. "
                             "Ответь коротко, тепло и практически: что видишь, дай честную оценку, "
+                            "пиши на 'ты' и не заполняй блоки механически, если они не нужны. "
                             "назови реальные плюсы, если они есть. Если здесь действительно есть "
                             "что улучшать — тогда предложи улучшение и один маленький шаг. Если "
                             "приём пищи и так выглядит удачным, прямо скажи это и не выдумывай "
@@ -638,6 +716,8 @@ async def analyze_food_photo(message: types.Message):
                             "Если конфликт есть, скажи, что в составе есть нежелательный для пользователя "
                             "продукт/компонент, и предложи простую замену. Такой продукт нельзя записывать "
                             "в плюсы блюда для этого пользователя. "
+                            "Если улучшение уместно, предложи 1-3 конкретных варианта под это блюдо, "
+                            "а не общий совет ради заполнения шаблона. "
                             "Не считай калории и БЖУ, если пользователь прямо не просит. "
                             "Не превращай ответ в лекцию. Если приём пищи явно слабый, "
                             "не смягчай оценку и не выдумывай пользу, но сохраняй уважительный тон. "
@@ -719,11 +799,13 @@ async def analyze_food_text(message: types.Message):
 
     is_analysis_request = is_meal_analysis_request(text)
     is_follow_up_request = is_meal_follow_up_request(text, history)
+    is_offer_acceptance_request = is_assistant_offer_acceptance(text, history)
     is_capability_request = is_capability_question(text)
 
     if (
         not is_analysis_request
         and not is_follow_up_request
+        and not is_offer_acceptance_request
         and not is_capability_request
         and not is_nutrition_related(text, history=history)
     ):
@@ -751,9 +833,13 @@ async def analyze_food_text(message: types.Message):
                 MEAL_FOLLOW_UP_INSTRUCTION
                 if is_follow_up_request
                 else (
-                    CAPABILITY_QUESTION_INSTRUCTION
-                    if is_capability_request
-                    else GENERAL_NUTRITION_ADVICE_INSTRUCTION
+                    CONTINUE_ASSISTANT_OFFER_INSTRUCTION
+                    if is_offer_acceptance_request
+                    else (
+                        CAPABILITY_QUESTION_INSTRUCTION
+                        if is_capability_request
+                        else GENERAL_NUTRITION_ADVICE_INSTRUCTION
+                    )
                 )
             )
         )
@@ -793,7 +879,7 @@ async def analyze_food_text(message: types.Message):
             ]
         )
 
-        answer = response.output_text
+        answer = normalize_telegram_markdown(response.output_text)
 
         if is_analysis_request:
             answer = normalize_good_meal_analysis(answer)
