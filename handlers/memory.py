@@ -12,7 +12,7 @@ from services.memory import (
     get_user_memory_facts,
     save_memory_from_text,
 )
-from services.users import maybe_upsert_private_user
+from services.users import maybe_upsert_private_user, upsert_user_profile
 from state import PENDING_ACTIONS
 
 
@@ -33,8 +33,8 @@ def memory_actions_keyboard():
     )
 
 
-async def show_memory(message: types.Message):
-    telegram_id = message.from_user.id
+async def show_memory(message: types.Message, telegram_id: int = None):
+    telegram_id = telegram_id or message.from_user.id
     facts = get_user_memory_facts(telegram_id)
 
     if not facts:
@@ -129,6 +129,13 @@ def register(dp: Dispatcher):
         maybe_upsert_private_user(message)
         PENDING_ACTIONS.pop(message.from_user.id, None)
         await show_memory(message)
+
+    @dp.callback_query(lambda callback: callback.data == "memory:show")
+    async def memory_show_callback(callback: types.CallbackQuery):
+        upsert_user_profile(callback.from_user)
+        PENDING_ACTIONS.pop(callback.from_user.id, None)
+        await callback.answer()
+        await show_memory(callback.message, callback.from_user.id)
 
     @dp.message(Command("memory"))
     async def memory_command(message: types.Message):

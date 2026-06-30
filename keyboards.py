@@ -1,4 +1,11 @@
-from aiogram.types import BotCommand, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import (
+    BotCommand,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+)
 
 
 BOT_COMMANDS = [
@@ -25,14 +32,11 @@ def main_keyboard():
         keyboard=[
             [
                 KeyboardButton(text=MENU_RECIPES),
-                KeyboardButton(text=MENU_MEMORY),
-            ],
-            [
-                KeyboardButton(text=MENU_FEEDBACK),
                 KeyboardButton(text=MENU_HELP),
             ],
         ],
         resize_keyboard=True,
+        one_time_keyboard=True,
         input_field_placeholder="Опиши еду или выбери действие",
     )
 
@@ -49,6 +53,27 @@ def cancel_keyboard():
     )
 
 
+def hide_keyboard():
+    return ReplyKeyboardRemove()
+
+
+def help_actions_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Факты обо мне",
+                    callback_data="memory:show"
+                ),
+                InlineKeyboardButton(
+                    text="Обратная связь",
+                    callback_data="feedback:start"
+                ),
+            ],
+        ]
+    )
+
+
 def help_text():
     return (
         "Что я умею:\n\n"
@@ -62,7 +87,7 @@ def help_text():
         "💡 Давать персональные рекомендации с учётом твоих целей и ограничений\n"
         "🧠 Запоминать факты о тебе: ограничения, аллергии, предпочтения, цели и режим\n\n"
         "💳 Подписка: статус — /subscription, отмена автосписания — /cancel_subscription\n\n"
-        "✉️ Принимать обратную связь через кнопку «Обратная связь»\n\n"
-        "Добавь факты через кнопку «Факты обо мне», чтобы рекомендации учитывали твои нюансы.\n"
+        "✉️ Принимать обратную связь и сообщения в поддержку\n\n"
+        "Добавь факты о себе, чтобы рекомендации учитывали твои нюансы.\n"
         "Можно просто написать, что ты съел, спросить, как улучшить блюдо, или отправить фото еды."
     )

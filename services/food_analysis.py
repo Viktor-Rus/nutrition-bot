@@ -5,7 +5,7 @@ from aiogram import types
 
 from clients import bot, openai_client, supabase
 from config import BOT_ROLE, OPENAI_VECTOR_STORE_ID
-from keyboards import main_keyboard
+from keyboards import hide_keyboard
 from services.memory import (
     build_user_memory_context,
     get_chat_history,
@@ -686,13 +686,13 @@ async def analyze_food_photo(message: types.Message):
             "ai_comment": answer
         }).execute()
 
-        await message.answer(answer, reply_markup=main_keyboard())
+        await message.answer(answer, reply_markup=hide_keyboard())
 
     except Exception as e:
         print("PHOTO ANALYSIS ERROR:", repr(e))
         await message.answer(
             "Не смог проанализировать фото. Попробуй отправить другое изображение или описать еду текстом.",
-            reply_markup=main_keyboard()
+            reply_markup=hide_keyboard()
         )
 
 
@@ -703,7 +703,7 @@ async def analyze_food_text(message: types.Message):
     if not text:
         await message.answer(
             "Пока я умею анализировать только текст и фото еды.",
-            reply_markup=main_keyboard()
+            reply_markup=hide_keyboard()
         )
         return
 
@@ -733,7 +733,7 @@ async def analyze_food_text(message: types.Message):
                 "энергией, сном, тренировками и мягким улучшением образа жизни. "
                 "Напиши вопрос в этих темах — разберём спокойно и по делу."
             ),
-            reply_markup=main_keyboard()
+            reply_markup=hide_keyboard()
         )
         return
 
@@ -811,11 +811,11 @@ async def analyze_food_text(message: types.Message):
                 "ai_comment": answer
             }).execute()
 
-        await message.answer(answer, reply_markup=main_keyboard())
+        await message.answer(answer, reply_markup=hide_keyboard())
 
     except Exception as e:
         print("OPENAI ERROR:", repr(e))
         await message.answer(
             "Не смог сейчас проанализировать сообщение.",
-            reply_markup=main_keyboard()
+            reply_markup=hide_keyboard()
         )
