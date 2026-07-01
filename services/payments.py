@@ -299,6 +299,12 @@ def start_offer_keyboard(subscription=None):
             ],
             [
                 InlineKeyboardButton(
+                    text="Отменить подписку",
+                    callback_data=SUBSCRIPTION_CANCEL_CALLBACK
+                )
+            ],
+            [
+                InlineKeyboardButton(
                     text="Книга рецептов",
                     callback_data="recipes:home"
                 )
@@ -858,7 +864,10 @@ async def request_subscription_cancel_confirmation(message: types.Message, teleg
     subscription = get_subscription(telegram_id)
 
     if not is_subscription_auto_renewing(subscription):
-        await message.answer("У тебя нет активной подписки.", reply_markup=main_keyboard())
+        await message.answer(
+            "Автосписание сейчас не подключено, поэтому отменять пока нечего.",
+            reply_markup=start_offer_keyboard(subscription)
+        )
         return
 
     period_ends_at = parse_dt(subscription.get("current_period_ends_at"))
