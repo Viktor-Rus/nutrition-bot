@@ -22,6 +22,7 @@ class FakeRepo:
             "telegram_id": telegram_id,
             "status": "pending_confirmation",
             "payment_method_id": None,
+            "receipt_email": None,
             "trial_starts_at": None,
             "trial_ends_at": None,
             "current_period_ends_at": None,
@@ -164,6 +165,7 @@ class SubscriptionFlowsTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(subscription["status"], "trialing")
         self.assertIsNone(subscription["payment_method_id"])
+        self.assertIsNone(subscription["receipt_email"])
         self.assertEqual(subscription["trial_starts_at"], payments.iso_dt(self.fixed_now))
         self.assertEqual(subscription["trial_ends_at"], payments.iso_dt(trial_end))
         self.assertEqual(subscription["current_period_ends_at"], payments.iso_dt(trial_end))
@@ -415,6 +417,50 @@ class SubscriptionFlowsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(subscription["current_period_ends_at"], payments.iso_dt(trial_end))
         self.assertIsNone(subscription["next_charge_at"])
         message.answer.assert_awaited_once()
+
+    async def test_paid_checkout_requires_receipt_email_when_receipts_are_required(self):
+        telegram_id = 116
+        trial_start = dt(2026, 6, 1, 7, 13)
+        trial_end = trial_start + timedelta(days=payments.SUBSCRIPTION_TRIAL_DAYS)
+        self.fixed_now = trial_start + timedelta(days=1)
+        self.repo.seed_subscription(
+            telegram_id,
+            status="trialing",
+            payment_method_id=None,
+            receipt_email=None,
+            trial_starts_at=payments.iso_dt(trial_start),
+            trial_ends_at=payments.iso_dt(trial_end),
+            current_period_ends_at=payments.iso_dt(trial_end),
+            next_charge_at=None,
+        )
+        message = AsyncMock()
+
+        with (
+            patch.object(payments, "yookassa_is_configured", return_value=True),
+            patch.object(payments, "YOOKASSA_RECEIPT_REQUIRED", True),
+            patch.object(payments, "create_payment_method") as create_payment_method,
+        ):
+            await payments.start_subscription(message, telegram_id)
+
+        create_payment_method.assert_not_called()
+        message.answer.assert_awaited_once()
+        self.assertEqual(
+            payments.PENDING_ACTIONS[telegram_id],
+            payments.SUBSCRIPTION_RECEIPT_EMAIL_ACTION,
+        )
+        payments.PENDING_ACTIONS.pop(telegram_id, None)
+
+    async def test_subscription_receipt_uses_saved_customer_email(self):
+        subscription = self.repo.seed_subscription(
+            117,
+            receipt_email="USER@EXAMPLE.COM",
+        )
+
+        with patch.object(payments, "YOOKASSA_RECEIPT_REQUIRED", True):
+            receipt = payments.build_subscription_receipt(subscription)
+
+        self.assertEqual(receipt["customer"], {"email": "user@example.com"})
+        self.assertEqual(receipt["items"][0]["payment_subject"], "service")
 
     async def test_trial_expiring_reminder_is_sent_once_one_day_before_end(self):
         telegram_id = 113

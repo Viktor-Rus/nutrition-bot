@@ -1,4 +1,5 @@
 import asyncio
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -19,12 +20,14 @@ from config import (
     YOOKASSA_RECEIPT_CUSTOMER_PHONE,
     YOOKASSA_RECEIPT_PAYMENT_MODE,
     YOOKASSA_RECEIPT_PAYMENT_SUBJECT,
+    YOOKASSA_RECEIPT_REQUIRED,
     YOOKASSA_RECEIPT_TAX_SYSTEM_CODE,
     YOOKASSA_RECEIPT_VAT_CODE,
     YOOKASSA_SECRET_KEY,
     YOOKASSA_SHOP_ID,
 )
-from keyboards import main_keyboard
+from keyboards import cancel_keyboard, hide_keyboard, main_keyboard
+from state import PENDING_ACTIONS
 
 
 SUBSCRIPTION_START_CALLBACK = "subscriptions:start"
@@ -36,9 +39,12 @@ SUBSCRIPTION_CANCEL_KEEP_CALLBACK = "subscriptions:cancel_keep"
 SUBSCRIPTION_PAYLOAD = "mealadvisor_subscription"
 SUBSCRIPTION_ACTION_START = "start_subscription"
 SUBSCRIPTION_ACTION_REPLACE_PAYMENT_METHOD = "replace_payment_method"
+SUBSCRIPTION_RECEIPT_EMAIL_ACTION = "subscription_receipt_email"
+SUBSCRIPTION_CHANGE_CARD_RECEIPT_EMAIL_ACTION = "subscription_change_card_receipt_email"
 YOOKASSA_API_URL = "https://api.yookassa.ru/v3"
 CHARGE_DUE_LOCK = asyncio.Lock()
 TRIAL_END_REMINDER_LEAD_TIME = timedelta(days=1)
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def now_utc():
@@ -85,25 +91,42 @@ def amount_to_yookassa_value(amount_minor):
     return str(Decimal(amount_minor) / Decimal(100))
 
 
-def yookassa_receipt_customer():
+def normalize_email(value: str):
+    return (value or "").strip().lower()
+
+
+def is_valid_email(value: str):
+    return bool(EMAIL_RE.match(normalize_email(value)))
+
+
+def subscription_receipt_email(subscription):
+    return normalize_email((subscription or {}).get("receipt_email"))
+
+
+def yookassa_receipt_customer(subscription=None):
     customer = {}
+    receipt_email = subscription_receipt_email(subscription)
 
-    if YOOKASSA_RECEIPT_CUSTOMER_EMAIL:
-        customer["email"] = YOOKASSA_RECEIPT_CUSTOMER_EMAIL
+    if not receipt_email and not YOOKASSA_RECEIPT_REQUIRED:
+        receipt_email = YOOKASSA_RECEIPT_CUSTOMER_EMAIL
 
-    if YOOKASSA_RECEIPT_CUSTOMER_PHONE:
+    if receipt_email:
+        customer["email"] = receipt_email
+
+    if YOOKASSA_RECEIPT_CUSTOMER_PHONE and not YOOKASSA_RECEIPT_REQUIRED:
         customer["phone"] = YOOKASSA_RECEIPT_CUSTOMER_PHONE
 
     return customer
 
 
-def build_subscription_receipt(telegram_id: int, amount_minor=SUBSCRIPTION_MONTHLY_AMOUNT):
-    customer = yookassa_receipt_customer()
+def build_subscription_receipt(subscription, amount_minor=SUBSCRIPTION_MONTHLY_AMOUNT):
+    telegram_id = subscription["telegram_id"]
+    customer = yookassa_receipt_customer(subscription)
 
     if not customer:
         print(
-            "YOOKASSA RECEIPT SKIPPED: set YOOKASSA_RECEIPT_CUSTOMER_EMAIL "
-            "or YOOKASSA_RECEIPT_CUSTOMER_PHONE"
+            "YOOKASSA RECEIPT SKIPPED: set subscription receipt_email, "
+            "YOOKASSA_RECEIPT_CUSTOMER_EMAIL or YOOKASSA_RECEIPT_CUSTOMER_PHONE"
         )
         return None
 
@@ -206,10 +229,14 @@ def create_recurring_payment(subscription):
             "payload": SUBSCRIPTION_PAYLOAD,
         },
     }
-    receipt = build_subscription_receipt(telegram_id)
+    receipt = build_subscription_receipt(subscription)
 
     if receipt:
         payload["receipt"] = receipt
+    elif YOOKASSA_RECEIPT_REQUIRED:
+        raise RuntimeError(
+            "YooKassa receipt is required, but customer email or phone is not configured"
+        )
 
     return yookassa_request("POST", "/payments", payload)
 
@@ -351,6 +378,15 @@ def update_subscription(telegram_id: int, fields):
     )
 
 
+def save_subscription_receipt_email(telegram_id: int, email: str):
+    update_subscription(
+        telegram_id,
+        {
+            "receipt_email": normalize_email(email),
+        }
+    )
+
+
 def save_pending_subscription(telegram_id: int, payment_method, existing_subscription=None):
     existing_subscription = existing_subscription or {}
 
@@ -358,6 +394,7 @@ def save_pending_subscription(telegram_id: int, payment_method, existing_subscri
         "telegram_id": telegram_id,
         "payment_method_id": payment_method["id"],
         "status": "pending_confirmation",
+        "receipt_email": subscription_receipt_email(existing_subscription) or None,
         "trial_starts_at": existing_subscription.get("trial_starts_at"),
         "trial_ends_at": existing_subscription.get("trial_ends_at"),
         "current_period_ends_at": existing_subscription.get("current_period_ends_at"),
@@ -383,6 +420,7 @@ def activate_free_trial(telegram_id: int):
         "telegram_id": telegram_id,
         "payment_method_id": None,
         "status": "trialing",
+        "receipt_email": subscription_receipt_email(existing_subscription) or None,
         "trial_starts_at": iso_dt(started_at),
         "trial_ends_at": iso_dt(trial_ends_at),
         "current_period_ends_at": iso_dt(trial_ends_at),
@@ -410,6 +448,7 @@ def activate_subscription(telegram_id: int, payment_method_id: str):
         {
             "payment_method_id": payment_method_id,
             "status": "trialing",
+            "receipt_email": subscription_receipt_email(existing_subscription) or None,
             "trial_starts_at": iso_dt(started_at),
             "trial_ends_at": iso_dt(trial_ends_at),
             "current_period_ends_at": iso_dt(trial_ends_at),
@@ -634,6 +673,10 @@ async def start_subscription(message: types.Message, telegram_id: int):
         )
         return
 
+    if YOOKASSA_RECEIPT_REQUIRED and not subscription_receipt_email(subscription):
+        await request_subscription_receipt_email(message, telegram_id)
+        return
+
     try:
         payment_method = create_payment_method(telegram_id)
         save_pending_subscription(telegram_id, payment_method, existing_subscription=subscription)
@@ -680,6 +723,53 @@ async def start_subscription(message: types.Message, telegram_id: int):
     )
 
 
+async def request_subscription_receipt_email(
+    message: types.Message,
+    telegram_id: int,
+    action=SUBSCRIPTION_RECEIPT_EMAIL_ACTION,
+):
+    PENDING_ACTIONS[telegram_id] = action
+    await message.answer(
+        "Для оплаты нужен email, на который отправим кассовый чек.\n\n"
+        "Напиши email одним сообщением. Например: name@example.com",
+        reply_markup=cancel_keyboard()
+    )
+
+
+async def process_subscription_receipt_email(message: types.Message, email: str, action: str):
+    telegram_id = message.from_user.id
+    email = normalize_email(email)
+
+    if not is_valid_email(email):
+        PENDING_ACTIONS[telegram_id] = action
+        await message.answer(
+            "Похоже, email написан с ошибкой. Отправь, пожалуйста, корректный email для чека.",
+            reply_markup=cancel_keyboard()
+        )
+        return
+
+    try:
+        save_subscription_receipt_email(telegram_id, email)
+    except Exception as e:
+        print("SUBSCRIPTION RECEIPT EMAIL SAVE ERROR:", repr(e))
+        await message.answer(
+            "Не смог сохранить email для чека. Попробуй ещё раз позже.",
+            reply_markup=main_keyboard()
+        )
+        return
+
+    await message.answer(
+        "Email для чека сохранил. Сейчас подготовлю оплату.",
+        reply_markup=hide_keyboard()
+    )
+
+    if action == SUBSCRIPTION_CHANGE_CARD_RECEIPT_EMAIL_ACTION:
+        await request_subscription_payment_method_change(message, telegram_id)
+        return
+
+    await start_subscription(message, telegram_id)
+
+
 async def request_subscription_payment_method_change(message: types.Message, telegram_id: int):
     if not yookassa_is_configured():
         await message.answer(
@@ -701,6 +791,14 @@ async def request_subscription_payment_method_change(message: types.Message, tel
         await message.answer(
             "Сейчас уже есть незавершённая привязка карты или оплата. Заверши её и попробуй снова.",
             reply_markup=main_keyboard()
+        )
+        return
+
+    if YOOKASSA_RECEIPT_REQUIRED and not subscription_receipt_email(subscription):
+        await request_subscription_receipt_email(
+            message,
+            telegram_id,
+            action=SUBSCRIPTION_CHANGE_CARD_RECEIPT_EMAIL_ACTION,
         )
         return
 

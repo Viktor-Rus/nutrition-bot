@@ -3,6 +3,11 @@ from aiogram import Dispatcher, types
 from keyboards import MENU_CANCEL, main_keyboard
 from services.access import require_recipes_subscription
 from services.memory import delete_memory_from_text, save_memory_from_text
+from services.payments import (
+    SUBSCRIPTION_CHANGE_CARD_RECEIPT_EMAIL_ACTION,
+    SUBSCRIPTION_RECEIPT_EMAIL_ACTION,
+    process_subscription_receipt_email,
+)
 from services.recipes import recipe_search_results_keyboard, search_recipes, send_recipe_book
 from services.support import send_feedback_to_support
 from services.users import maybe_upsert_private_user
@@ -34,6 +39,13 @@ def register(dp: Dispatcher):
 
         if action == "forget":
             await delete_memory_from_text(message, text)
+            return
+
+        if action in (
+            SUBSCRIPTION_RECEIPT_EMAIL_ACTION,
+            SUBSCRIPTION_CHANGE_CARD_RECEIPT_EMAIL_ACTION,
+        ):
+            await process_subscription_receipt_email(message, text, action)
             return
 
         if action == "recipe_search":
