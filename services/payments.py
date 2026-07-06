@@ -249,6 +249,33 @@ def has_used_trial(subscription):
 
 
 def start_offer_text(subscription=None):
+    period_ends_at = parse_dt((subscription or {}).get("current_period_ends_at"))
+
+    if (
+        subscription
+        and subscription.get("status") == "trialing"
+        and not subscription.get("payment_method_id")
+        and (not period_ends_at or period_ends_at > now_utc())
+    ):
+        trial_ends_at = parse_dt(subscription.get("trial_ends_at")) or period_ends_at
+        trial_note = (
+            f"\n\nБесплатная неделя активна до: {trial_ends_at:%d.%m.%Y %H:%M UTC}."
+            if trial_ends_at
+            else "\n\nБесплатная неделя активна."
+        )
+
+        return (
+            "Привет! Я MealAdvisor.\n\n"
+            "Помогаю разбирать питание без жёстких запретов:\n"
+            "🍽 анализирую еду по фото или описанию\n"
+            "📦 читаю составы продуктов и упаковок\n"
+            "📚 подбираю рецепты и идеи блюд\n"
+            "🧠 учитываю твои цели, ограничения и сохранённые факты\n\n"
+            "Можно начать просто: отправь фото еды, напиши что съел или задай вопрос про питание."
+            f"{trial_note}\n"
+            f"Чтобы доступ не прервался после пробного периода, можно заранее подключить оплату подписки: {format_amount()} в месяц."
+        )
+
     if has_used_trial(subscription):
         return (
             "Привет! Я MealAdvisor.\n\n"
@@ -277,11 +304,21 @@ def start_offer_text(subscription=None):
 
 
 def start_offer_keyboard(subscription=None):
-    start_button_text = (
-        "Оплатить подписку"
-        if has_used_trial(subscription)
-        else "Подключить 7 дней бесплатно"
+    is_active_free_trial = bool(
+        subscription
+        and subscription.get("status") == "trialing"
+        and not subscription.get("payment_method_id")
+        and is_subscription_active(subscription)
     )
+
+    if is_active_free_trial:
+        start_button_text = "Сохранить доступ после пробного периода"
+    else:
+        start_button_text = (
+            "Оплатить подписку"
+            if has_used_trial(subscription)
+            else "Подключить 7 дней бесплатно"
+        )
 
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -575,7 +612,7 @@ def format_subscription_status(subscription):
             return (
                 "Подписка активна: бесплатная неделя.\n\n"
                 f"Пробный период до: {trial_ends_at:%d.%m.%Y %H:%M UTC}\n"
-                f"После окончания пробного периода можно будет подключить подписку {format_amount()} в месяц."
+                f"Чтобы доступ не прервался после пробного периода, можно заранее подключить оплату подписки: {format_amount()} в месяц."
             )
 
         if is_subscription_in_billing_grace(subscription):
