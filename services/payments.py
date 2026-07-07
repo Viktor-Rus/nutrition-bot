@@ -250,6 +250,35 @@ def has_used_trial(subscription):
 
 def start_offer_text(subscription=None):
     period_ends_at = parse_dt((subscription or {}).get("current_period_ends_at"))
+    next_charge_at = parse_dt((subscription or {}).get("next_charge_at"))
+
+    if is_subscription_auto_renewing(subscription):
+        next_charge_note = (
+            f"\n\nСледующее списание: {next_charge_at:%d.%m.%Y %H:%M UTC}."
+            if next_charge_at
+            else ""
+        )
+
+        return (
+            "Привет! Я MealAdvisor.\n\n"
+            "Подписка активна, доступ открыт.\n\n"
+            "Можно отправить фото еды, написать что съел или задать вопрос про питание."
+            f"{next_charge_note}"
+        )
+
+    if is_subscription_active(subscription):
+        period_note = (
+            f"\n\nДоступ открыт до: {period_ends_at:%d.%m.%Y %H:%M UTC}."
+            if period_ends_at
+            else ""
+        )
+
+        return (
+            "Привет! Я MealAdvisor.\n\n"
+            "Доступ к анализу еды, рецептам и рекомендациям открыт.\n\n"
+            "Можно отправить фото еды, написать что съел или задать вопрос про питание."
+            f"{period_note}"
+        )
 
     if (
         subscription
