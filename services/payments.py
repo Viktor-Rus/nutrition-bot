@@ -317,7 +317,7 @@ def start_offer_keyboard(subscription=None):
         start_button_text = (
             "Оплатить подписку"
             if has_used_trial(subscription)
-            else "Подключить 7 дней бесплатно"
+            else "Подключить 7 дней БЕСПЛАТНО"
         )
 
     return InlineKeyboardMarkup(
