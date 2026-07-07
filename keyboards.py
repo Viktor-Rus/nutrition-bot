@@ -23,7 +23,7 @@ BOT_COMMANDS = [
 MENU_RECIPES = "Книга рецептов"
 MENU_MEMORY = "Факты обо мне"
 MENU_FEEDBACK = "Обратная связь"
-MENU_HELP = "Помощь"
+MENU_HELP = "Что умеет бот"
 MENU_CANCEL = "Отмена"
 
 
@@ -31,12 +31,13 @@ def main_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[
             [
-                KeyboardButton(text=MENU_RECIPES),
                 KeyboardButton(text=MENU_HELP),
+                KeyboardButton(text=MENU_FEEDBACK),
             ],
         ],
         resize_keyboard=True,
-        one_time_keyboard=True,
+        is_persistent=True,
+        one_time_keyboard=False,
         input_field_placeholder="Опиши еду или выбери действие",
     )
 
