@@ -5,6 +5,7 @@ from services.broadcast import (
     cancel_broadcast,
     confirm_broadcast,
     create_broadcast_draft,
+    create_inactive_start_broadcast_draft,
 )
 
 
@@ -12,6 +13,10 @@ def register(dp: Dispatcher):
     @dp.message(Command("broadcast"))
     async def broadcast_command(message: types.Message):
         await create_broadcast_draft(message)
+
+    @dp.message(Command("broadcast_inactive_start"))
+    async def broadcast_inactive_start_command(message: types.Message):
+        await create_inactive_start_broadcast_draft(message)
 
     @dp.message(Command("confirm_broadcast"))
     async def confirm_broadcast_command(message: types.Message):

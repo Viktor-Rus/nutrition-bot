@@ -7,6 +7,18 @@ from services.support import is_support_chat
 from state import BROADCAST_DRAFTS
 
 
+DEFAULT_INACTIVE_START_BROADCAST_TEXT = (
+    "Привет, {name}! Видел, что ты открыл MealAdvisor, но ещё ничего не отправлял.\n\n"
+    "Можно начать совсем просто: пришли фото любого приёма пищи, перекуса "
+    "или состава продукта с упаковки.\n\n"
+    "Я не буду ругать и запрещать. Просто подскажу:\n"
+    "• что уже нормально\n"
+    "• что можно улучшить\n"
+    "• какой маленький шаг сделать без жёстких диет\n\n"
+    "Попробуй с последнего фото еды в телефоне 🙂"
+)
+
+
 def get_broadcast_recipients():
     recipients = []
     page_size = 1000
@@ -16,7 +28,7 @@ def get_broadcast_recipients():
         try:
             result = (
                 supabase.table("users")
-                .select("telegram_id, name, username")
+                .select("telegram_id, name, username, is_blocked")
                 .range(start, start + page_size - 1)
                 .execute()
             )
@@ -32,6 +44,9 @@ def get_broadcast_recipients():
         rows = result.data or []
 
         for row in rows:
+            if row.get("is_blocked") is True:
+                continue
+
             telegram_id = row.get("telegram_id")
 
             if telegram_id:
@@ -54,6 +69,49 @@ def get_broadcast_recipients():
     return [
         unique_recipients[telegram_id]
         for telegram_id in sorted(unique_recipients)
+    ]
+
+
+def get_table_telegram_ids(table_name: str):
+    telegram_ids = set()
+    page_size = 1000
+    start = 0
+
+    while True:
+        result = (
+            supabase.table(table_name)
+            .select("telegram_id")
+            .range(start, start + page_size - 1)
+            .execute()
+        )
+
+        rows = result.data or []
+
+        for row in rows:
+            telegram_id = row.get("telegram_id")
+
+            if telegram_id:
+                telegram_ids.add(int(telegram_id))
+
+        if len(rows) < page_size:
+            break
+
+        start += page_size
+
+    return telegram_ids
+
+
+def get_inactive_start_recipients():
+    recipients = get_broadcast_recipients()
+    active_telegram_ids = (
+        get_table_telegram_ids("messages")
+        | get_table_telegram_ids("meals")
+    )
+
+    return [
+        recipient
+        for recipient in recipients
+        if recipient["telegram_id"] not in active_telegram_ids
     ]
 
 
@@ -115,36 +173,19 @@ def format_delivery_report(delivered, failed, limit: int = 15):
     return "\n\n".join(report_parts)
 
 
-async def create_broadcast_draft(message: types.Message):
-    if not is_support_chat(message.chat.id):
-        await message.answer("Эта команда доступна только в чате поддержки.")
-        return
-
-    parts = (message.text or "").split(maxsplit=1)
-
-    if len(parts) < 2 or not parts[1].strip():
-        await message.answer(
-            "Формат рассылки:\n\n"
-            "/broadcast текст сообщения\n\n"
-            "Например: /broadcast Добавили книгу рецептов в меню."
-        )
-        return
-
-    broadcast_text = parts[1].strip()
-
+async def save_broadcast_draft(
+    message: types.Message,
+    broadcast_text: str,
+    recipients,
+    recipient_type: str,
+    title: str = "Черновик рассылки создан.",
+):
     if len(broadcast_text) > 3500:
         await message.answer("Сообщение слишком длинное. Сократи текст до 3500 символов.")
         return
 
-    try:
-        recipients = get_broadcast_recipients()
-    except Exception as e:
-        print("BROADCAST RECIPIENTS ERROR:", repr(e))
-        await message.answer("Не смог получить список пользователей для рассылки.")
-        return
-
     if not recipients:
-        await message.answer("Не нашёл пользователей для рассылки.")
+        await message.answer("Не нашёл пользователей для этой рассылки.")
         return
 
     try:
@@ -165,10 +206,11 @@ async def create_broadcast_draft(message: types.Message):
     BROADCAST_DRAFTS[str(message.chat.id)] = {
         "text": broadcast_text,
         "created_by": message.from_user.id,
+        "recipient_type": recipient_type,
     }
 
     await message.answer(
-        "Черновик рассылки создан.\n\n"
+        f"{title}\n\n"
         f"Получателей: {len(recipients)}\n\n"
         "Получатели:\n"
         f"{format_recipients_preview(recipients)}\n\n"
@@ -177,6 +219,66 @@ async def create_broadcast_draft(message: types.Message):
         f"Пример для первого пользователя:\n{preview_text}\n\n"
         "Чтобы отправить, напиши /confirm_broadcast\n"
         "Чтобы отменить, напиши /cancel_broadcast"
+    )
+
+
+async def create_broadcast_draft(message: types.Message):
+    if not is_support_chat(message.chat.id):
+        await message.answer("Эта команда доступна только в чате поддержки.")
+        return
+
+    parts = (message.text or "").split(maxsplit=1)
+
+    if len(parts) < 2 or not parts[1].strip():
+        await message.answer(
+            "Формат рассылки:\n\n"
+            "/broadcast текст сообщения\n\n"
+            "Например: /broadcast Добавили книгу рецептов в меню."
+        )
+        return
+
+    broadcast_text = parts[1].strip()
+
+    try:
+        recipients = get_broadcast_recipients()
+    except Exception as e:
+        print("BROADCAST RECIPIENTS ERROR:", repr(e))
+        await message.answer("Не смог получить список пользователей для рассылки.")
+        return
+
+    await save_broadcast_draft(
+        message=message,
+        broadcast_text=broadcast_text,
+        recipients=recipients,
+        recipient_type="all",
+    )
+
+
+async def create_inactive_start_broadcast_draft(message: types.Message):
+    if not is_support_chat(message.chat.id):
+        await message.answer("Эта команда доступна только в чате поддержки.")
+        return
+
+    parts = (message.text or "").split(maxsplit=1)
+    broadcast_text = (
+        parts[1].strip()
+        if len(parts) > 1 and parts[1].strip()
+        else DEFAULT_INACTIVE_START_BROADCAST_TEXT
+    )
+
+    try:
+        recipients = get_inactive_start_recipients()
+    except Exception as e:
+        print("INACTIVE START BROADCAST RECIPIENTS ERROR:", repr(e))
+        await message.answer("Не смог получить список пользователей без сообщений.")
+        return
+
+    await save_broadcast_draft(
+        message=message,
+        broadcast_text=broadcast_text,
+        recipients=recipients,
+        recipient_type="inactive_start",
+        title="Черновик рассылки пользователям без сообщений создан.",
     )
 
 
@@ -195,12 +297,20 @@ async def confirm_broadcast(message: types.Message):
         return
 
     broadcast_text = draft["text"]
+    recipient_type = draft.get("recipient_type", "all")
 
     try:
-        recipients = get_broadcast_recipients()
+        if recipient_type == "inactive_start":
+            recipients = get_inactive_start_recipients()
+        else:
+            recipients = get_broadcast_recipients()
     except Exception as e:
         print("BROADCAST RECIPIENTS ERROR:", repr(e))
         await message.answer("Не смог получить список пользователей для рассылки.")
+        return
+
+    if not recipients:
+        await message.answer("Не нашёл пользователей для этой рассылки.")
         return
 
     sent = 0
