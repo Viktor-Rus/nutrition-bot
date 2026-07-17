@@ -1,4 +1,5 @@
 import asyncio
+import re
 
 from aiogram import types
 
@@ -17,6 +18,7 @@ DEFAULT_INACTIVE_START_BROADCAST_TEXT = (
     "• какой маленький шаг сделать без жёстких диет\n\n"
     "Попробуй с последнего фото еды в телефоне 🙂"
 )
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def get_broadcast_recipients():
@@ -28,7 +30,7 @@ def get_broadcast_recipients():
         try:
             result = (
                 supabase.table("users")
-                .select("telegram_id, name, username, is_blocked")
+                .select("telegram_id, name, username, is_blocked, created_at")
                 .range(start, start + page_size - 1)
                 .execute()
             )
@@ -54,6 +56,7 @@ def get_broadcast_recipients():
                     "telegram_id": int(telegram_id),
                     "name": row.get("name") or "",
                     "username": row.get("username") or "",
+                    "created_at": row.get("created_at") or "",
                 })
 
         if len(rows) < page_size:
@@ -101,7 +104,7 @@ def get_table_telegram_ids(table_name: str):
     return telegram_ids
 
 
-def get_inactive_start_recipients():
+def get_inactive_start_recipients(created_since: str = None):
     recipients = get_broadcast_recipients()
     active_telegram_ids = (
         get_table_telegram_ids("messages")
@@ -112,6 +115,10 @@ def get_inactive_start_recipients():
         recipient
         for recipient in recipients
         if recipient["telegram_id"] not in active_telegram_ids
+        and (
+            not created_since
+            or (recipient.get("created_at") or "") >= created_since
+        )
     ]
 
 
@@ -178,6 +185,7 @@ async def save_broadcast_draft(
     broadcast_text: str,
     recipients,
     recipient_type: str,
+    recipient_filters=None,
     title: str = "Черновик рассылки создан.",
 ):
     if len(broadcast_text) > 3500:
@@ -207,6 +215,7 @@ async def save_broadcast_draft(
         "text": broadcast_text,
         "created_by": message.from_user.id,
         "recipient_type": recipient_type,
+        "recipient_filters": recipient_filters or {},
     }
 
     await message.answer(
@@ -259,15 +268,23 @@ async def create_inactive_start_broadcast_draft(message: types.Message):
         await message.answer("Эта команда доступна только в чате поддержки.")
         return
 
-    parts = (message.text or "").split(maxsplit=1)
-    broadcast_text = (
-        parts[1].strip()
-        if len(parts) > 1 and parts[1].strip()
-        else DEFAULT_INACTIVE_START_BROADCAST_TEXT
-    )
+    parts = (message.text or "").split(maxsplit=2)
+    created_since = None
+    broadcast_text = DEFAULT_INACTIVE_START_BROADCAST_TEXT
+
+    if len(parts) > 1:
+        first_arg = parts[1].strip()
+
+        if DATE_RE.match(first_arg):
+            created_since = first_arg
+
+            if len(parts) > 2 and parts[2].strip():
+                broadcast_text = parts[2].strip()
+        elif first_arg:
+            broadcast_text = " ".join(parts[1:]).strip()
 
     try:
-        recipients = get_inactive_start_recipients()
+        recipients = get_inactive_start_recipients(created_since=created_since)
     except Exception as e:
         print("INACTIVE START BROADCAST RECIPIENTS ERROR:", repr(e))
         await message.answer("Не смог получить список пользователей без сообщений.")
@@ -278,6 +295,7 @@ async def create_inactive_start_broadcast_draft(message: types.Message):
         broadcast_text=broadcast_text,
         recipients=recipients,
         recipient_type="inactive_start",
+        recipient_filters={"created_since": created_since},
         title="Черновик рассылки пользователям без сообщений создан.",
     )
 
@@ -298,10 +316,13 @@ async def confirm_broadcast(message: types.Message):
 
     broadcast_text = draft["text"]
     recipient_type = draft.get("recipient_type", "all")
+    recipient_filters = draft.get("recipient_filters") or {}
 
     try:
         if recipient_type == "inactive_start":
-            recipients = get_inactive_start_recipients()
+            recipients = get_inactive_start_recipients(
+                created_since=recipient_filters.get("created_since")
+            )
         else:
             recipients = get_broadcast_recipients()
     except Exception as e:
