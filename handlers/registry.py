@@ -2,6 +2,7 @@ from aiogram import Dispatcher
 
 from handlers import (
     broadcast,
+    chat_member,
     feedback,
     food,
     memory,
@@ -14,6 +15,7 @@ from handlers import (
 
 
 def register_handlers(dp: Dispatcher):
+    chat_member.register(dp)
     start.register(dp)
     subscriptions.register(dp)
     support.register(dp)

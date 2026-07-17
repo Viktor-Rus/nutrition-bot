@@ -8,6 +8,7 @@ def build_user_profile(user: types.User):
         "telegram_id": user.id,
         "name": user.full_name,
         "username": user.username,
+        "is_blocked": False,
     }
 
 
@@ -35,3 +36,12 @@ def maybe_upsert_private_user(message: types.Message):
         upsert_user_profile(message.from_user)
     except Exception as e:
         print("SUPABASE USER ERROR:", repr(e))
+
+
+def set_user_blocked(telegram_id: int, is_blocked: bool):
+    try:
+        supabase.table("users").update({
+            "is_blocked": is_blocked,
+        }).eq("telegram_id", telegram_id).execute()
+    except Exception as e:
+        print("SUPABASE USER BLOCKED STATUS ERROR:", telegram_id, repr(e))
