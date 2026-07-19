@@ -46,6 +46,10 @@ def get_user_memory(telegram_id: int):
     return "\n".join([f"- {fact}" for fact in facts])
 
 
+def is_profile_memory_fact(fact: str):
+    return (fact or "").startswith("Профиль питания:")
+
+
 def build_user_memory_context(telegram_id: int):
     memory = get_user_memory(telegram_id)
     profile = ""
@@ -203,7 +207,11 @@ async def delete_memory_from_text(message: types.Message, value: str):
 
     try:
         if value.isdigit():
-            facts = get_user_memory_facts(telegram_id)
+            facts = [
+                fact
+                for fact in get_user_memory_facts(telegram_id)
+                if not is_profile_memory_fact(fact)
+            ]
             index = int(value)
 
             if index < 1 or index > len(facts):

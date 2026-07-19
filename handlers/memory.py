@@ -10,15 +10,34 @@ from keyboards import (
 from services.memory import (
     delete_memory_from_text,
     get_user_memory_facts,
+    is_profile_memory_fact,
     save_memory_from_text,
+)
+from services.profile import (
+    PROFILE_START_CALLBACK,
+    format_user_profile_for_display,
 )
 from services.users import maybe_upsert_private_user, upsert_user_profile
 from state import PENDING_ACTIONS
 
 
+def visible_memory_facts(telegram_id: int):
+    return [
+        fact
+        for fact in get_user_memory_facts(telegram_id)
+        if not is_profile_memory_fact(fact)
+    ]
+
+
 def memory_actions_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Изменить профиль",
+                    callback_data=PROFILE_START_CALLBACK
+                ),
+            ],
             [
                 InlineKeyboardButton(
                     text="Добавить факт",
@@ -35,22 +54,32 @@ def memory_actions_keyboard():
 
 async def show_memory(message: types.Message, telegram_id: int = None):
     telegram_id = telegram_id or message.from_user.id
-    facts = get_user_memory_facts(telegram_id)
+    profile = format_user_profile_for_display(telegram_id)
+    facts = visible_memory_facts(telegram_id)
 
-    if not facts:
+    if not profile and not facts:
         await message.answer(
             "Пока я не сохранил долгосрочных фактов о тебе.",
             reply_markup=memory_actions_keyboard()
         )
         return
 
-    memory = "\n".join([
-        f"{index}. {fact}"
-        for index, fact in enumerate(facts, start=1)
-    ])
+    blocks = []
+
+    if profile:
+        blocks.append(profile)
+
+    if facts:
+        memory = "\n".join([
+            f"{index}. {fact}"
+            for index, fact in enumerate(facts, start=1)
+        ])
+        blocks.append(f"🧠 Дополнительные факты\n{memory}")
+
+    memory_text = "\n\n".join(blocks)
 
     await message.answer(
-        f"Вот что я знаю о тебе и буду учитывать при рекомендациях:\n\n{memory}\n\n"
+        f"Вот что я знаю о тебе и буду учитывать при рекомендациях:\n\n{memory_text}\n\n"
         "Выбери действие:",
         reply_markup=memory_actions_keyboard()
     )
@@ -67,7 +96,7 @@ async def request_memory_fact(message: types.Message, user_id: int):
 
 
 async def request_memory_delete(message: types.Message, user_id: int):
-    facts = get_user_memory_facts(user_id)
+    facts = visible_memory_facts(user_id)
 
     if not facts:
         await message.answer(

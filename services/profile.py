@@ -38,6 +38,10 @@ GOALS = {
 }
 
 
+def normalize_text(text: str):
+    return (text or "").lower().replace("ё", "е").strip()
+
+
 def profile_setup_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -116,23 +120,126 @@ def parse_height_weight(text: str):
     return None, None
 
 
-def get_user_profile_context(telegram_id: int):
+def parse_profile_updates(text: str):
+    normalized = normalize_text(text)
+    updates = {}
+
+    weight_match = re.search(
+        r"(?:вес|вешу|похудел|похудела|набрал|набрала|теперь|сейчас|стал|стала)"
+        r"[^\d]{0,30}(\d{2,3})(?:[,.]\d+)?\s*(?:кг|килограмм)",
+        normalized,
+    )
+    if weight_match:
+        weight = int(weight_match.group(1))
+        if 35 <= weight <= 250:
+            updates["weight"] = weight
+
+    height_match = re.search(
+        r"(?:рост|вырос|выросла|теперь|сейчас)"
+        r"[^\d]{0,30}(\d{3})(?:[,.]\d+)?\s*(?:см|сантиметр)",
+        normalized,
+    )
+    if height_match:
+        height = int(height_match.group(1))
+        if 120 <= height <= 230:
+            updates["height"] = height
+
+    age_match = re.search(
+        r"(?:возраст|мне|исполнилось)"
+        r"[^\d]{0,20}(\d{1,3})\s*(?:лет|год|года)?",
+        normalized,
+    )
+    if age_match:
+        age = int(age_match.group(1))
+        if 10 <= age <= 100:
+            updates["age"] = age
+
+    return updates
+
+
+def build_profile_memory_fact(profile: dict):
+    def value_or_empty(key):
+        value = profile.get(key)
+        return value if value not in (None, "") else "не указано"
+
+    return (
+        "Профиль питания: "
+        f"возраст {value_or_empty('age')}, "
+        f"рост {value_or_empty('height')} см, "
+        f"вес {value_or_empty('weight')} кг, "
+        f"цель — {value_or_empty('goal')}, "
+        f"предпочтения — {value_or_empty('diet_preferences')}, "
+        f"ограничения — {value_or_empty('restrictions')}."
+    )
+
+
+def format_updated_profile_fields(updates: dict):
+    labels = {
+        "age": "Возраст",
+        "height": "Рост",
+        "weight": "Вес",
+    }
+    suffixes = {
+        "age": "",
+        "height": " см",
+        "weight": " кг",
+    }
+
+    return "\n".join(
+        f"{labels[key]}: {value}{suffixes[key]}"
+        for key, value in updates.items()
+        if key in labels
+    )
+
+
+async def maybe_update_profile_from_text(message: types.Message):
+    updates = parse_profile_updates(message.text or "")
+    if not updates:
+        return False
+
+    user_id = message.from_user.id
+    update_data = {
+        **updates,
+        "profile_completed_at": datetime.now(timezone.utc).isoformat(),
+    }
+
     try:
-        result = (
-            supabase.table("users")
-            .select("age,height,weight,goal,diet_preferences,restrictions")
-            .eq("telegram_id", telegram_id)
-            .limit(1)
-            .execute()
-        )
+        supabase.table("users").update(update_data).eq(
+            "telegram_id",
+            user_id,
+        ).execute()
     except Exception as e:
-        print("USER PROFILE CONTEXT ERROR:", repr(e))
+        print("PROFILE QUICK UPDATE WITH TIMESTAMP ERROR:", repr(e))
+        try:
+            supabase.table("users").update(updates).eq(
+                "telegram_id",
+                user_id,
+            ).execute()
+        except Exception as fallback_error:
+            print("PROFILE QUICK UPDATE ERROR:", repr(fallback_error))
+            await message.answer(
+                "Понял, но не смог обновить профиль в базе. Попробуй через /profile.",
+                reply_markup=main_keyboard(),
+            )
+            return True
+
+    profile = get_user_profile(user_id) or {}
+    replace_profile_memory_fact(user_id, build_profile_memory_fact(profile))
+
+    await message.answer(
+        "Обновил профиль ✅\n\n"
+        f"{format_updated_profile_fields(updates)}\n\n"
+        "Теперь буду учитывать это в анализе еды и рекомендациях.",
+        reply_markup=main_keyboard(),
+    )
+    return True
+
+
+def get_user_profile_context(telegram_id: int):
+    row = get_user_profile(telegram_id)
+    if not row:
         return ""
 
-    if not result.data:
-        return ""
-
-    row = result.data[0] or {}
     lines = []
 
     if row.get("age"):
@@ -150,6 +257,58 @@ def get_user_profile_context(telegram_id: int):
 
     if not lines:
         return ""
+
+    return "\n".join(lines)
+
+
+def get_user_profile(telegram_id: int):
+    try:
+        result = (
+            supabase.table("users")
+            .select("age,height,weight,goal,diet_preferences,restrictions")
+            .eq("telegram_id", telegram_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:
+        print("USER PROFILE CONTEXT ERROR:", repr(e))
+        return None
+
+    if not result.data:
+        return None
+
+    return result.data[0] or {}
+
+
+def format_user_profile_for_display(telegram_id: int):
+    row = get_user_profile(telegram_id)
+    if not row:
+        return ""
+
+    age = row.get("age")
+    height = row.get("height")
+    weight = row.get("weight")
+    goal = row.get("goal")
+    preferences = row.get("diet_preferences")
+    restrictions = row.get("restrictions")
+
+    if not any([age, height, weight, goal, preferences, restrictions]):
+        return ""
+
+    lines = ["🎯 Профиль питания"]
+
+    if age:
+        lines.append(f"Возраст: {age}")
+    if height:
+        lines.append(f"Рост: {height} см")
+    if weight:
+        lines.append(f"Вес: {weight} кг")
+    if goal:
+        lines.append(f"Цель: {goal}")
+    if preferences:
+        lines.append(f"Предпочтения: {preferences}")
+    if restrictions:
+        lines.append(f"Ограничения: {restrictions}")
 
     return "\n".join(lines)
 
@@ -313,13 +472,14 @@ async def complete_profile(message: types.Message, user_id: int, restrictions_te
         print("PROFILE USER SAVE ERROR:", repr(e))
 
     memory_fact = (
-        "Профиль питания: "
-        f"возраст {draft.get('age')}, "
-        f"рост {draft.get('height')} см, "
-        f"вес {draft.get('weight')} кг, "
-        f"цель — {draft.get('goal')}, "
-        f"предпочтения — {draft.get('diet_preferences')}, "
-        f"ограничения — {restrictions}."
+        build_profile_memory_fact({
+            "age": draft.get("age"),
+            "height": draft.get("height"),
+            "weight": draft.get("weight"),
+            "goal": draft.get("goal"),
+            "diet_preferences": draft.get("diet_preferences"),
+            "restrictions": restrictions,
+        })
     )
     replace_profile_memory_fact(user_id, memory_fact)
 

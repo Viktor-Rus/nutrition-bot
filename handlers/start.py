@@ -7,8 +7,6 @@ from services.payments import (
     activate_free_trial,
     get_subscription,
     has_used_trial,
-    start_offer_keyboard,
-    start_offer_text,
 )
 from services.profile import PROFILE_START_CALLBACK
 from services.users import maybe_upsert_private_user
@@ -20,9 +18,19 @@ START_ACTION_COMPOSITION_CALLBACK = "start_action:composition"
 START_ACTION_DINNER_CALLBACK = "start_action:dinner"
 
 
-def start_onboarding_keyboard(subscription=None):
-    subscription_keyboard = start_offer_keyboard(subscription)
+def start_welcome_text():
+    return (
+        "Привет! Я MealAdvisor.\n\n"
+        "Помогаю разбирать питание без жёстких запретов:\n"
+        "🍽 анализирую еду по фото или описанию\n"
+        "📦 читаю составы продуктов и упаковок\n"
+        "📚 подбираю рецепты и идеи блюд\n"
+        "🧠 учитываю твою цель и ограничения\n\n"
+        "Начать можно просто: пришли фото еды или упаковки."
+    )
 
+
+def start_onboarding_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -33,21 +41,16 @@ def start_onboarding_keyboard(subscription=None):
             ],
             [
                 InlineKeyboardButton(
-                    text="🧾 Проверить состав",
-                    callback_data=START_ACTION_COMPOSITION_CALLBACK,
-                ),
-                InlineKeyboardButton(
-                    text="🍽 Подобрать ужин",
-                    callback_data=START_ACTION_DINNER_CALLBACK,
-                ),
-            ],
-            [
-                InlineKeyboardButton(
                     text="🎯 Настроить под себя",
                     callback_data=PROFILE_START_CALLBACK,
                 ),
             ],
-            *subscription_keyboard.inline_keyboard,
+            [
+                InlineKeyboardButton(
+                    text="📚 Книга рецептов",
+                    callback_data="recipes:home",
+                ),
+            ],
         ]
     )
 
@@ -63,8 +66,8 @@ def register(dp: Dispatcher):
             subscription = get_subscription(message.from_user.id)
 
         await message.answer(
-            start_offer_text(subscription),
-            reply_markup=start_onboarding_keyboard(subscription)
+            start_welcome_text(),
+            reply_markup=start_onboarding_keyboard()
         )
 
     @dp.callback_query(lambda callback: callback.data == START_ACTION_PHOTO_CALLBACK)
