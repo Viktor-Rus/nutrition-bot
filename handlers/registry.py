@@ -7,6 +7,7 @@ from handlers import (
     food,
     memory,
     pending,
+    profile,
     recipes,
     start,
     subscriptions,
@@ -23,5 +24,6 @@ def register_handlers(dp: Dispatcher):
     recipes.register(dp)
     memory.register(dp)
     feedback.register(dp)
+    profile.register(dp)
     pending.register(dp)
     food.register(dp)

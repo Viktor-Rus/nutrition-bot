@@ -15,6 +15,7 @@ BOT_COMMANDS = [
     BotCommand(command="feedback", description="Написать обратную связь"),
     BotCommand(command="subscription", description="Статус подписки"),
     BotCommand(command="cancel_subscription", description="Отменить подписку"),
+    BotCommand(command="profile", description="Настроить персональные рекомендации"),
     BotCommand(command="memory", description="Показать сохранённые факты"),
     BotCommand(command="remember", description="Добавить факт в память"),
     BotCommand(command="forget", description="Удалить факт из памяти"),
@@ -77,6 +78,12 @@ def help_actions_keyboard():
                     callback_data="feedback:start"
                 ),
             ],
+            [
+                InlineKeyboardButton(
+                    text="Настроить под себя",
+                    callback_data="profile:start"
+                ),
+            ],
         ]
     )
 
@@ -98,6 +105,7 @@ def help_text():
         "• Помогаю менять питание маленькими шагами\n\n"
         "🧠 Персонализация\n"
         "• Учитываю цели, ограничения, аллергии и предпочтения\n"
+        "• Настроить профиль — /profile\n"
         "• Факты обо мне — /memory\n\n"
         "💳 Подписка\n"
         "• Статус подписки — /subscription\n"

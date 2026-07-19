@@ -10,6 +10,7 @@ from services.payments import (
     start_offer_keyboard,
     start_offer_text,
 )
+from services.profile import PROFILE_START_CALLBACK
 from services.users import maybe_upsert_private_user
 from state import PENDING_ACTIONS
 
@@ -17,7 +18,6 @@ from state import PENDING_ACTIONS
 START_ACTION_PHOTO_CALLBACK = "start_action:photo"
 START_ACTION_COMPOSITION_CALLBACK = "start_action:composition"
 START_ACTION_DINNER_CALLBACK = "start_action:dinner"
-START_ACTION_GOAL_CALLBACK = "start_action:goal"
 
 
 def start_onboarding_keyboard(subscription=None):
@@ -43,8 +43,8 @@ def start_onboarding_keyboard(subscription=None):
             ],
             [
                 InlineKeyboardButton(
-                    text="🎯 Питание под цель",
-                    callback_data=START_ACTION_GOAL_CALLBACK,
+                    text="🎯 Настроить под себя",
+                    callback_data=PROFILE_START_CALLBACK,
                 ),
             ],
             *subscription_keyboard.inline_keyboard,
@@ -92,16 +92,6 @@ def register(dp: Dispatcher):
             "Напиши, что есть дома и сколько времени на готовку 🍽\n\n"
             "Например: «есть курица, яйца и овощи, нужно за 20 минут». "
             "Я предложу простой вариант ужина."
-        )
-
-    @dp.callback_query(lambda callback: callback.data == START_ACTION_GOAL_CALLBACK)
-    async def start_action_goal(callback: types.CallbackQuery):
-        await callback.answer()
-        await callback.message.answer(
-            "Напиши свою цель 🎯\n\n"
-            "Например: «хочу похудеть», «хочу набрать мышечную массу», "
-            "«хочу меньше сладкого» или «хочу больше энергии». "
-            "Я предложу первые понятные шаги."
         )
 
     @dp.message(Command("help"))

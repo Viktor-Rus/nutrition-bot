@@ -48,6 +48,13 @@ def get_user_memory(telegram_id: int):
 
 def build_user_memory_context(telegram_id: int):
     memory = get_user_memory(telegram_id)
+    profile = ""
+
+    try:
+        from services.profile import get_user_profile_context
+        profile = get_user_profile_context(telegram_id)
+    except Exception as e:
+        print("USER PROFILE MEMORY CONTEXT ERROR:", repr(e))
 
     if not memory:
         memory = "Пока нет сохранённых фактов."
@@ -55,6 +62,8 @@ def build_user_memory_context(telegram_id: int):
     return {
         "role": "system",
         "content": (
+            "Профиль пользователя для персонализации:\n"
+            f"{profile or 'Пока не заполнен.'}\n\n"
             "Долговременная память о пользователе:\n"
             f"{memory}\n\n"
             "Эти факты включают информацию, которую пользователь мог сохранить вручную через /remember "

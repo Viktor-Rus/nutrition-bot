@@ -8,10 +8,11 @@ from services.payments import (
     SUBSCRIPTION_RECEIPT_EMAIL_ACTION,
     process_subscription_receipt_email,
 )
+from services.profile import PROFILE_TEXT_ACTIONS, handle_profile_pending_message
 from services.recipes import recipe_search_results_keyboard, search_recipes, send_recipe_book
 from services.support import send_feedback_to_support
 from services.users import maybe_upsert_private_user
-from state import PENDING_ACTIONS
+from state import PENDING_ACTIONS, PROFILE_DRAFTS
 
 
 def register(dp: Dispatcher):
@@ -19,6 +20,7 @@ def register(dp: Dispatcher):
     async def menu_cancel(message: types.Message):
         maybe_upsert_private_user(message)
         PENDING_ACTIONS.pop(message.from_user.id, None)
+        PROFILE_DRAFTS.pop(message.from_user.id, None)
         await message.answer("Ок, отменил действие.", reply_markup=main_keyboard())
 
     @dp.message(lambda message: PENDING_ACTIONS.get(message.from_user.id) == "feedback")
@@ -30,8 +32,14 @@ def register(dp: Dispatcher):
     @dp.message(lambda message: message.text and message.from_user.id in PENDING_ACTIONS)
     async def handle_pending_action(message: types.Message):
         maybe_upsert_private_user(message)
-        action = PENDING_ACTIONS.pop(message.from_user.id)
+        action = PENDING_ACTIONS.get(message.from_user.id)
         text = message.text.strip()
+
+        if action in PROFILE_TEXT_ACTIONS:
+            await handle_profile_pending_message(message, action, text)
+            return
+
+        action = PENDING_ACTIONS.pop(message.from_user.id)
 
         if action == "remember":
             await save_memory_from_text(message, text)
