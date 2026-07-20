@@ -2,6 +2,7 @@ import base64
 import re
 
 from aiogram import types
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from clients import bot, openai_client, supabase
 from config import BOT_ROLE, OPENAI_VECTOR_STORE_ID
@@ -11,8 +12,37 @@ from services.memory import (
     get_chat_history,
     is_memory_save_request,
     prompt_memory_save_via_menu,
+    save_user_memory_fact,
 )
 from services.nutrition_classifier import is_nutrition_related
+
+
+FOOD_ACTION_IMPROVE_TOMORROW = "food_action:improve_tomorrow"
+FOOD_ACTION_REPLACEMENT = "food_action:replacement"
+FOOD_ACTION_SAVE_HABIT = "food_action:save_habit"
+
+
+def food_analysis_actions_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Как улучшить завтра?",
+                    callback_data=FOOD_ACTION_IMPROVE_TOMORROW,
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Подобрать замену",
+                    callback_data=FOOD_ACTION_REPLACEMENT,
+                ),
+                InlineKeyboardButton(
+                    text="Сохранить как привычку",
+                    callback_data=FOOD_ACTION_SAVE_HABIT,
+                ),
+            ],
+        ]
+    )
 
 
 FOOD_ANALYSIS_FORMAT_INSTRUCTION = (
@@ -22,6 +52,13 @@ FOOD_ANALYSIS_FORMAT_INSTRUCTION = (
     "Этот шаблон не нужно заполнять механически: если какой-то блок звучит искусственно "
     "или не добавляет пользы, сократи его или пропусти. Пиши на 'ты', живо и по-человечески, "
     "как спокойный нутрициолог в переписке, а не как анкета. "
+    "Если еда выглядит нормальной, сбалансированной или без очевидных проблем, не растягивай "
+    "ответ на полный шаблон. Дай короткую живую оценку в 2-3 небольших блока: что это, почему "
+    "всё в порядке, и нужен ли маленький шаг. Можно писать прямо: 'Нормальный вариант, тут "
+    "главное не усложнять' или 'выглядит ок, улучшения не обязательны'. "
+    "Полный разбор с несколькими блоками нужен только если есть явный конфликт, слабое место, "
+    "запрос на подробный анализ или пользователь просит улучшения. "
+    "Меняй формулировки от ответа к ответу, чтобы не звучать одинаково. "
     "Если приём пищи явно слабый для здоровья: много сахара, ультра-переработанная еда, "
     "кофе натощак, алкоголь, курение рядом с едой, отсутствие белка/клетчатки или сильная "
     "сахарная нагрузка — честно скажи, что такой вариант лучше не делать регулярным "
@@ -76,6 +113,8 @@ GENERAL_NUTRITION_ADVICE_INSTRUCTION = (
     "'🍽️ Что это', '⚠️ Оценка', '✅ Что уже хорошо'. "
     "Отвечай гибко по смыслу вопроса: дай 2-4 практичных варианта, коротко объясни, "
     "почему они подходят, и заверши одним простым следующим шагом. "
+    "Если вопрос простой, отвечай коротко и разговорно, без ощущения лекции. "
+    "Не повторяй одну и ту же структуру в каждом ответе; выбирай форму под ситуацию. "
     "Если вопрос про быстрый завтрак, предложи варианты на 5-10 минут. "
     "Если вопрос про вредную/менее полезную еду, объясни, как снизить последствия "
     "до, во время и после без самобичевания. "
@@ -676,6 +715,135 @@ def build_follow_up_focus_context(history):
     }, meal_thread
 
 
+def food_action_prompt(action: str):
+    if action == FOOD_ACTION_IMPROVE_TOMORROW:
+        return (
+            "Пользователь нажал кнопку 'Как улучшить завтра?'. "
+            "На основе последнего анализа еды предложи 2-3 очень конкретных и реалистичных "
+            "способа улучшить похожий приём пищи завтра. Не ругай пользователя, не повторяй "
+            "весь прошлый анализ. Пиши коротко, как личный помощник: что оставить, что чуть "
+            "добавить или заменить. Если блюдо уже было хорошим, скажи, что можно оставить "
+            "почти так же и предложи один необязательный маленький штрих."
+        )
+
+    if action == FOOD_ACTION_REPLACEMENT:
+        return (
+            "Пользователь нажал кнопку 'Подобрать замену'. "
+            "На основе последнего анализа еды предложи 3 понятные замены или альтернативы: "
+            "одну максимально простую, одну более сытную/сбалансированную, одну удобную на каждый день. "
+            "Учитывай цель, ограничения и предпочтения пользователя из памяти. Не предлагай продукты, "
+            "которые конфликтуют с его ограничениями. Пиши коротко и практически."
+        )
+
+    if action == FOOD_ACTION_SAVE_HABIT:
+        return (
+            "Пользователь нажал кнопку 'Сохранить как привычку'. "
+            "На основе последнего анализа еды сформулируй одну короткую полезную привычку от первого лица, "
+            "которую стоит сохранить в память пользователя. Верни только саму привычку, без заголовков, "
+            "без пояснений и без кавычек. Пример: 'Добавлять источник белка к завтраку'."
+        )
+
+    return ""
+
+
+def food_action_label(action: str):
+    labels = {
+        FOOD_ACTION_IMPROVE_TOMORROW: "Как улучшить завтра?",
+        FOOD_ACTION_REPLACEMENT: "Подобрать замену",
+        FOOD_ACTION_SAVE_HABIT: "Сохранить как привычку",
+    }
+    return labels.get(action, "Быстрое действие после анализа еды")
+
+
+async def answer_food_action(callback: types.CallbackQuery, action: str):
+    telegram_id = callback.from_user.id
+    prompt = food_action_prompt(action)
+
+    if not prompt:
+        await callback.answer("Не понял действие")
+        return
+
+    await callback.answer()
+
+    try:
+        history = get_chat_history(telegram_id, limit=12)
+        follow_up_focus_context, meal_thread = build_follow_up_focus_context(history)
+
+        context_input = [
+            build_user_memory_context(telegram_id),
+            follow_up_focus_context,
+        ] + meal_thread + [
+            {
+                "role": "system",
+                "content": (
+                    "Продолжай разговор по последнему анализу еды. "
+                    "Не используй полный шаблон анализа. Отвечай коротко, живо и по делу. "
+                    "Не используй Markdown-разметку: без **жирного**, ### и списков через дефис."
+                ),
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ]
+
+        response = openai_client.responses.create(
+            model="gpt-4.1-mini",
+            instructions=BOT_ROLE,
+            input=context_input,
+            tools=[
+                {
+                    "type": "file_search",
+                    "vector_store_ids": [
+                        OPENAI_VECTOR_STORE_ID
+                    ]
+                }
+            ]
+        )
+
+        answer = normalize_telegram_markdown(response.output_text).strip()
+
+        if action == FOOD_ACTION_SAVE_HABIT:
+            habit = re.sub(r"^Привычка:\s*", "", answer).strip()
+            if not habit:
+                habit = "Делать один маленький шаг для улучшения похожего приёма пищи."
+
+            status = save_user_memory_fact(telegram_id, f"Привычка: {habit}")
+            if status == "duplicate":
+                await callback.message.answer(
+                    "Такая привычка уже сохранена в памяти.",
+                    reply_markup=hide_keyboard(),
+                )
+                return
+
+            await callback.message.answer(
+                f"Сохранил привычку ✅\n\n{habit}",
+                reply_markup=hide_keyboard(),
+            )
+            return
+
+        supabase.table("messages").insert({
+            "telegram_id": telegram_id,
+            "role": "user",
+            "content": f"[Кнопка: {food_action_label(action)}]",
+        }).execute()
+
+        supabase.table("messages").insert({
+            "telegram_id": telegram_id,
+            "role": "assistant",
+            "content": answer,
+        }).execute()
+
+        await callback.message.answer(answer, reply_markup=hide_keyboard())
+
+    except Exception as e:
+        print("FOOD ACTION ERROR:", repr(e))
+        await callback.message.answer(
+            "Не смог сейчас продолжить разбор. Попробуй написать вопрос текстом.",
+            reply_markup=hide_keyboard(),
+        )
+
+
 async def analyze_food_photo(message: types.Message):
     telegram_id = message.from_user.id
 
@@ -774,7 +942,7 @@ async def analyze_food_photo(message: types.Message):
             "ai_comment": answer
         }).execute()
 
-        await message.answer(answer, reply_markup=hide_keyboard())
+        await message.answer(answer, reply_markup=food_analysis_actions_keyboard())
 
     except Exception as e:
         print("PHOTO ANALYSIS ERROR:", repr(e))
@@ -905,7 +1073,14 @@ async def analyze_food_text(message: types.Message):
                 "ai_comment": answer
             }).execute()
 
-        await message.answer(answer, reply_markup=hide_keyboard())
+        await message.answer(
+            answer,
+            reply_markup=(
+                food_analysis_actions_keyboard()
+                if is_analysis_request
+                else hide_keyboard()
+            ),
+        )
 
     except Exception as e:
         print("OPENAI ERROR:", repr(e))

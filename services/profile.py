@@ -19,12 +19,14 @@ PROFILE_ACTION_BODY = "profile:body"
 PROFILE_ACTION_GOAL_TEXT = "profile:goal_text"
 PROFILE_ACTION_PREFERENCES = "profile:preferences"
 PROFILE_ACTION_RESTRICTIONS = "profile:restrictions"
+PROFILE_ACTION_CHALLENGE = "profile:challenge"
 PROFILE_TEXT_ACTIONS = {
     PROFILE_ACTION_AGE,
     PROFILE_ACTION_BODY,
     PROFILE_ACTION_GOAL_TEXT,
     PROFILE_ACTION_PREFERENCES,
     PROFILE_ACTION_RESTRICTIONS,
+    PROFILE_ACTION_CHALLENGE,
 }
 
 PROFILE_START_CALLBACK = "profile:start"
@@ -315,12 +317,13 @@ def format_user_profile_for_display(telegram_id: int):
 
 async def request_profile_setup(message: types.Message, user_id: int):
     PROFILE_DRAFTS[user_id] = {}
-    PENDING_ACTIONS[user_id] = PROFILE_ACTION_AGE
+    PENDING_ACTIONS[user_id] = PROFILE_ACTION_GOAL_TEXT
 
     await message.answer(
-        "Давай настроим рекомендации под тебя 🎯\n\n"
-        "Сколько тебе лет? Напиши просто число.",
-        reply_markup=cancel_keyboard(),
+        "Давай настроим мини-профиль 🎯\n\n"
+        "Это займёт меньше минуты и поможет давать советы именно под тебя.\n\n"
+        "1/3 Какая сейчас главная цель?",
+        reply_markup=goal_keyboard(),
     )
 
 
@@ -372,12 +375,12 @@ async def handle_profile_pending_message(
         goal = (text or "").strip()
         if len(goal) < 3:
             await message.answer(
-                "Напиши цель чуть подробнее. Например: хочу набрать мышечную массу.",
+                "Напиши цель чуть подробнее. Например: хочу набрать мышечную массу или хочу питаться спокойнее.",
                 reply_markup=cancel_keyboard(),
             )
             return
 
-        await ask_preferences(message, user_id, goal)
+        await ask_restrictions(message, user_id, goal)
         return
 
     if action == PROFILE_ACTION_PREFERENCES:
@@ -385,6 +388,10 @@ async def handle_profile_pending_message(
         return
 
     if action == PROFILE_ACTION_RESTRICTIONS:
+        await ask_challenge(message, user_id, text)
+        return
+
+    if action == PROFILE_ACTION_CHALLENGE:
         await complete_profile(message, user_id, text)
 
 
@@ -400,18 +407,30 @@ async def ask_preferences(message: types.Message, user_id: int, goal: str):
     )
 
 
-async def ask_restrictions(message: types.Message, user_id: int, preferences_text: str):
-    preferences = (preferences_text or "").strip()
-    if preferences.lower().replace("ё", "е") in {"нет", "нету", "без предпочтений"}:
-        preferences = "нет явных предпочтений"
-
-    PROFILE_DRAFTS.setdefault(user_id, {})["diet_preferences"] = preferences
+async def ask_restrictions(message: types.Message, user_id: int, goal: str):
+    PROFILE_DRAFTS.setdefault(user_id, {})["goal"] = goal
     PENDING_ACTIONS[user_id] = PROFILE_ACTION_RESTRICTIONS
 
     await message.answer(
-        "Есть продукты, которые ты не ешь, аллергии или непереносимости?\n\n"
-        "Например: не ем морковь, не переношу молоко, аллергия на арахис.\n"
+        "2/3 Есть продукты, которые ты не ешь, аллергии или непереносимости?\n\n"
+        "Например: не ем молочку, аллергия на арахис, не люблю рыбу.\n"
         "Если ограничений нет, так и напиши: нет.",
+        reply_markup=cancel_keyboard(),
+    )
+
+
+async def ask_challenge(message: types.Message, user_id: int, restrictions_text: str):
+    restrictions = (restrictions_text or "").strip()
+    if restrictions.lower().replace("ё", "е") in {"нет", "нету", "без ограничений"}:
+        restrictions = "нет явных ограничений"
+
+    PROFILE_DRAFTS.setdefault(user_id, {})["restrictions"] = restrictions
+    PENDING_ACTIONS[user_id] = PROFILE_ACTION_CHALLENGE
+
+    await message.answer(
+        "3/3 Что сейчас сложнее всего с питанием?\n\n"
+        "Например: тянет на сладкое, не успеваю готовить, мало белка, переедаю вечером.\n"
+        "Можно ответить коротко.",
         reply_markup=cancel_keyboard(),
     )
 
@@ -425,7 +444,7 @@ async def handle_profile_goal_callback(callback: types.CallbackQuery):
         return
 
     await callback.answer()
-    await ask_preferences(callback.message, callback.from_user.id, goal)
+    await ask_restrictions(callback.message, callback.from_user.id, goal)
 
 
 def replace_profile_memory_fact(user_id: int, fact: str):
@@ -439,13 +458,24 @@ def replace_profile_memory_fact(user_id: int, fact: str):
         print("PROFILE MEMORY SAVE ERROR:", repr(e))
 
 
-async def complete_profile(message: types.Message, user_id: int, restrictions_text: str):
+def replace_profile_challenge_fact(user_id: int, fact: str):
+    try:
+        existing_facts = get_user_memory_facts(user_id, limit=50)
+        for existing_fact in existing_facts:
+            if existing_fact.startswith("Сложность питания:"):
+                delete_user_memory_fact(user_id, existing_fact)
+        save_user_memory_fact(user_id, fact)
+    except Exception as e:
+        print("PROFILE CHALLENGE MEMORY SAVE ERROR:", repr(e))
+
+
+async def complete_profile(message: types.Message, user_id: int, challenge_text: str):
     draft = PROFILE_DRAFTS.pop(user_id, {})
     PENDING_ACTIONS.pop(user_id, None)
 
-    restrictions = (restrictions_text or "").strip()
-    if restrictions.lower().replace("ё", "е") in {"нет", "нету", "без ограничений"}:
-        restrictions = "нет явных ограничений"
+    challenge = (challenge_text or "").strip()
+    if challenge.lower().replace("ё", "е") in {"нет", "нету", "ничего"}:
+        challenge = "нет явной сложности"
 
     profile_data = {
         "age": draft.get("age"),
@@ -453,7 +483,7 @@ async def complete_profile(message: types.Message, user_id: int, restrictions_te
         "weight": draft.get("weight"),
         "goal": draft.get("goal"),
         "diet_preferences": draft.get("diet_preferences"),
-        "restrictions": restrictions,
+        "restrictions": draft.get("restrictions"),
         "profile_completed_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -469,23 +499,29 @@ async def complete_profile(message: types.Message, user_id: int, restrictions_te
             user_id,
         ).execute()
     except Exception as e:
-        print("PROFILE USER SAVE ERROR:", repr(e))
+        print("PROFILE USER SAVE WITH TIMESTAMP ERROR:", repr(e))
+        fallback_update_data = {
+            key: value
+            for key, value in update_data.items()
+            if key != "profile_completed_at"
+        }
+        try:
+            supabase.table("users").update(fallback_update_data).eq(
+                "telegram_id",
+                user_id,
+            ).execute()
+        except Exception as fallback_error:
+            print("PROFILE USER SAVE ERROR:", repr(fallback_error))
 
-    memory_fact = (
-        build_profile_memory_fact({
-            "age": draft.get("age"),
-            "height": draft.get("height"),
-            "weight": draft.get("weight"),
-            "goal": draft.get("goal"),
-            "diet_preferences": draft.get("diet_preferences"),
-            "restrictions": restrictions,
-        })
-    )
+    current_profile = get_user_profile(user_id) or profile_data
+    memory_fact = build_profile_memory_fact(current_profile)
     replace_profile_memory_fact(user_id, memory_fact)
+    replace_profile_challenge_fact(user_id, f"Сложность питания: {challenge}")
 
     await message.answer(
-        "Готово, настроил профиль 🎯\n\n"
-        "Теперь при анализе еды, рецептах и советах я буду учитывать цель, рост, вес "
-        "и ограничения. Можно сразу прислать фото еды или написать вопрос про питание.",
+        "Готово, мини-профиль настроен 🎯\n\n"
+        "Теперь при анализе еды, рецептах и советах я буду учитывать твою цель, "
+        "ограничения и то, что сейчас сложнее всего с питанием.\n\n"
+        "Можно сразу прислать фото еды или написать вопрос про питание.",
         reply_markup=main_keyboard(),
     )
