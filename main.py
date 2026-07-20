@@ -10,10 +10,13 @@ from handlers.registry import register_handlers
 from keyboards import BOT_COMMANDS
 from config import (
     ALLOWED_TELEGRAM_IDS,
+    ENGAGEMENT_CRON_SECRET,
+    IS_PRODUCTION,
     SUBSCRIPTION_AUTORENEW_ENABLED,
     SUBSCRIPTION_AUTORENEW_INTERVAL_SECONDS,
     SUBSCRIPTION_CRON_SECRET,
 )
+from services.engagement import send_start_reactivation_messages
 from services.payments import (
     activate_subscription_from_return,
     handle_yookassa_event,
@@ -193,6 +196,28 @@ async def charge_due_subscriptions_endpoint(request: Request):
             raise HTTPException(status_code=403, detail="Forbidden")
 
     return await run_subscription_maintenance()
+
+
+@app.post("/engagement/reactivate-started-users")
+async def reactivate_started_users_endpoint(request: Request):
+    if not IS_PRODUCTION:
+        return {
+            "ok": True,
+            "skipped": "non_production",
+        }
+
+    if not ENGAGEMENT_CRON_SECRET:
+        raise HTTPException(status_code=500, detail="ENGAGEMENT_CRON_SECRET is not configured")
+
+    provided_secret = request.headers.get("x-cron-secret") or request.query_params.get("secret")
+
+    if provided_secret != ENGAGEMENT_CRON_SECRET:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    result = await send_start_reactivation_messages()
+    print("START REACTIVATION TICK:", result)
+
+    return result
 
 
 @app.on_event("startup")
