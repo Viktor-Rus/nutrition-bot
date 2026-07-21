@@ -122,6 +122,26 @@ def parse_height_weight(text: str):
     return None, None
 
 
+def parse_gender(text: str):
+    normalized = normalize_text(text)
+
+    if re.search(r"\b(мужчина|мужской|парень|муж|м)\b", normalized):
+        return "мужской"
+
+    if re.search(r"\b(женщина|женский|девушка|жен|ж)\b", normalized):
+        return "женский"
+
+    return None
+
+
+def parse_profile_body(text: str):
+    gender = parse_gender(text)
+    age = parse_age(text)
+    height, weight = parse_height_weight(text)
+
+    return gender, age, height, weight
+
+
 def parse_profile_updates(text: str):
     normalized = normalize_text(text)
     updates = {}
@@ -156,6 +176,13 @@ def parse_profile_updates(text: str):
         if 10 <= age <= 100:
             updates["age"] = age
 
+    gender = parse_gender(normalized)
+    if gender and any(
+        marker in normalized
+        for marker in ("пол", "я мужчина", "я женщина", "мужской", "женский")
+    ):
+        updates["gender"] = gender
+
     return updates
 
 
@@ -166,6 +193,7 @@ def build_profile_memory_fact(profile: dict):
 
     return (
         "Профиль питания: "
+        f"пол {value_or_empty('gender')}, "
         f"возраст {value_or_empty('age')}, "
         f"рост {value_or_empty('height')} см, "
         f"вес {value_or_empty('weight')} кг, "
@@ -177,11 +205,13 @@ def build_profile_memory_fact(profile: dict):
 
 def format_updated_profile_fields(updates: dict):
     labels = {
+        "gender": "Пол",
         "age": "Возраст",
         "height": "Рост",
         "weight": "Вес",
     }
     suffixes = {
+        "gender": "",
         "age": "",
         "height": " см",
         "weight": " кг",
@@ -213,10 +243,16 @@ async def maybe_update_profile_from_text(message: types.Message):
     except Exception as e:
         print("PROFILE QUICK UPDATE WITH TIMESTAMP ERROR:", repr(e))
         try:
-            supabase.table("users").update(updates).eq(
-                "telegram_id",
-                user_id,
-            ).execute()
+            fallback_updates = {
+                key: value
+                for key, value in updates.items()
+                if key != "gender"
+            }
+            if fallback_updates:
+                supabase.table("users").update(fallback_updates).eq(
+                    "telegram_id",
+                    user_id,
+                ).execute()
         except Exception as fallback_error:
             print("PROFILE QUICK UPDATE ERROR:", repr(fallback_error))
             await message.answer(
@@ -244,6 +280,8 @@ def get_user_profile_context(telegram_id: int):
 
     lines = []
 
+    if row.get("gender"):
+        lines.append(f"- Пол: {row['gender']}")
     if row.get("age"):
         lines.append(f"- Возраст: {row['age']}")
     if row.get("height"):
@@ -267,14 +305,24 @@ def get_user_profile(telegram_id: int):
     try:
         result = (
             supabase.table("users")
-            .select("age,height,weight,goal,diet_preferences,restrictions")
+            .select("gender,age,height,weight,goal,diet_preferences,restrictions")
             .eq("telegram_id", telegram_id)
             .limit(1)
             .execute()
         )
     except Exception as e:
         print("USER PROFILE CONTEXT ERROR:", repr(e))
-        return None
+        try:
+            result = (
+                supabase.table("users")
+                .select("age,height,weight,goal,diet_preferences,restrictions")
+                .eq("telegram_id", telegram_id)
+                .limit(1)
+                .execute()
+            )
+        except Exception as fallback_error:
+            print("USER PROFILE CONTEXT FALLBACK ERROR:", repr(fallback_error))
+            return None
 
     if not result.data:
         return None
@@ -288,17 +336,20 @@ def format_user_profile_for_display(telegram_id: int):
         return ""
 
     age = row.get("age")
+    gender = row.get("gender")
     height = row.get("height")
     weight = row.get("weight")
     goal = row.get("goal")
     preferences = row.get("diet_preferences")
     restrictions = row.get("restrictions")
 
-    if not any([age, height, weight, goal, preferences, restrictions]):
+    if not any([gender, age, height, weight, goal, preferences, restrictions]):
         return ""
 
     lines = ["🎯 Профиль питания"]
 
+    if gender:
+        lines.append(f"Пол: {gender}")
     if age:
         lines.append(f"Возраст: {age}")
     if height:
@@ -322,7 +373,7 @@ async def request_profile_setup(message: types.Message, user_id: int):
     await message.answer(
         "Давай настроим мини-профиль 🎯\n\n"
         "Это займёт меньше минуты и поможет давать советы именно под тебя.\n\n"
-        "1/3 Какая сейчас главная цель?",
+        "1/4 Какая сейчас главная цель?",
         reply_markup=goal_keyboard(),
     )
 
@@ -354,21 +405,21 @@ async def handle_profile_pending_message(
         return
 
     if action == PROFILE_ACTION_BODY:
-        height, weight = parse_height_weight(text)
-        if not height or not weight:
+        gender, age, height, weight = parse_profile_body(text)
+        if not gender or not age or not height or not weight:
             await message.answer(
-                "Не смог разобрать рост и вес. Напиши примерно так: 178 см, 76 кг.",
+                "Не смог разобрать данные. Напиши одним сообщением примерно так:\n\n"
+                "мужчина, 32 года, 178 см, 76 кг\n\n"
+                "или: женщина, 29 лет, 165 см, 58 кг",
                 reply_markup=cancel_keyboard(),
             )
             return
 
+        draft["gender"] = gender
+        draft["age"] = age
         draft["height"] = height
         draft["weight"] = weight
-        PENDING_ACTIONS[user_id] = PROFILE_ACTION_GOAL_TEXT
-        await message.answer(
-            "Какая сейчас главная цель?",
-            reply_markup=goal_keyboard(),
-        )
+        await ask_restrictions(message, user_id, draft.get("goal", ""))
         return
 
     if action == PROFILE_ACTION_GOAL_TEXT:
@@ -380,7 +431,7 @@ async def handle_profile_pending_message(
             )
             return
 
-        await ask_restrictions(message, user_id, goal)
+        await ask_body(message, user_id, goal)
         return
 
     if action == PROFILE_ACTION_PREFERENCES:
@@ -407,12 +458,25 @@ async def ask_preferences(message: types.Message, user_id: int, goal: str):
     )
 
 
-async def ask_restrictions(message: types.Message, user_id: int, goal: str):
+async def ask_body(message: types.Message, user_id: int, goal: str):
     PROFILE_DRAFTS.setdefault(user_id, {})["goal"] = goal
+    PENDING_ACTIONS[user_id] = PROFILE_ACTION_BODY
+
+    await message.answer(
+        "2/4 Укажи пол, возраст, рост и вес одним сообщением.\n\n"
+        "Например: мужчина, 32 года, 178 см, 76 кг\n"
+        "или: женщина, 29 лет, 165 см, 58 кг",
+        reply_markup=cancel_keyboard(),
+    )
+
+
+async def ask_restrictions(message: types.Message, user_id: int, goal: str):
+    if goal:
+        PROFILE_DRAFTS.setdefault(user_id, {})["goal"] = goal
     PENDING_ACTIONS[user_id] = PROFILE_ACTION_RESTRICTIONS
 
     await message.answer(
-        "2/3 Есть продукты, которые ты не ешь, аллергии или непереносимости?\n\n"
+        "3/4 Есть продукты, которые ты не ешь, аллергии или непереносимости?\n\n"
         "Например: не ем молочку, аллергия на арахис, не люблю рыбу.\n"
         "Если ограничений нет, так и напиши: нет.",
         reply_markup=cancel_keyboard(),
@@ -428,7 +492,7 @@ async def ask_challenge(message: types.Message, user_id: int, restrictions_text:
     PENDING_ACTIONS[user_id] = PROFILE_ACTION_CHALLENGE
 
     await message.answer(
-        "3/3 Что сейчас сложнее всего с питанием?\n\n"
+        "4/4 Что сейчас сложнее всего с питанием?\n\n"
         "Например: тянет на сладкое, не успеваю готовить, мало белка, переедаю вечером.\n"
         "Можно ответить коротко.",
         reply_markup=cancel_keyboard(),
@@ -444,7 +508,7 @@ async def handle_profile_goal_callback(callback: types.CallbackQuery):
         return
 
     await callback.answer()
-    await ask_restrictions(callback.message, callback.from_user.id, goal)
+    await ask_body(callback.message, callback.from_user.id, goal)
 
 
 def replace_profile_memory_fact(user_id: int, fact: str):
@@ -478,6 +542,7 @@ async def complete_profile(message: types.Message, user_id: int, challenge_text:
         challenge = "нет явной сложности"
 
     profile_data = {
+        "gender": draft.get("gender"),
         "age": draft.get("age"),
         "height": draft.get("height"),
         "weight": draft.get("weight"),
@@ -503,13 +568,14 @@ async def complete_profile(message: types.Message, user_id: int, challenge_text:
         fallback_update_data = {
             key: value
             for key, value in update_data.items()
-            if key != "profile_completed_at"
+            if key not in {"profile_completed_at", "gender"}
         }
         try:
-            supabase.table("users").update(fallback_update_data).eq(
-                "telegram_id",
-                user_id,
-            ).execute()
+            if fallback_update_data:
+                supabase.table("users").update(fallback_update_data).eq(
+                    "telegram_id",
+                    user_id,
+                ).execute()
         except Exception as fallback_error:
             print("PROFILE USER SAVE ERROR:", repr(fallback_error))
 
