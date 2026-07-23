@@ -4,7 +4,7 @@ RECIPES = {
         "title": "Нежный морковный суп-пюре с кокосовыми сливками",
         "time": "30-35 минут",
         "servings": "2 порции",
-        "image_path": "assets/recipes/carrot_coconut_cream_soup.jpg",
+        "image_path": "assets/recipes/carrot_coconut_cream_soup_natural.jpg",
         "summary": (
             "Бархатистый морковный суп с мягкой сладостью кокосовых сливок. "
             "Хорошо подойдёт как тёплый лёгкий обед или ужин."
@@ -59,7 +59,7 @@ RECIPES = {
         "title": "Лёгкий суп-пюре из зелёного горошка с мятой",
         "time": "15 минут",
         "servings": "2 порции",
-        "image_path": "assets/recipes/green_pea_mint_soup.jpg",
+        "image_path": "assets/recipes/green_pea_mint_soup_natural.jpg",
         "summary": (
             "Яркий, быстрый и свежий суп-пюре из зелёного горошка с мятой. "
             "Хорошо подойдёт для лёгкого ужина или тёплого перекуса."
@@ -124,7 +124,7 @@ RECIPES = {
         "title": "Тыквенно-чечевичный суп с кокосовым молоком",
         "time": "45-50 минут",
         "servings": "3-4 порции",
-        "image_path": "assets/recipes/pumpkin_lentil_coconut_soup.jpg",
+        "image_path": "assets/recipes/pumpkin_lentil_coconut_soup_natural.jpg",
         "summary": (
             "Согревающий суп-пюре с восточными нотками: нежная тыква, "
             "красная чечевица и кокосовое молоко дают плотную кремовую текстуру "
@@ -187,7 +187,7 @@ RECIPES = {
         "title": "Старорусская похлёбка из редьки",
         "time": "15-20 минут, если картофель уже отварен",
         "servings": "2 порции",
-        "image_path": "assets/recipes/old_russian_radish_soup.jpg",
+        "image_path": "assets/recipes/old_russian_radish_soup_natural.jpg",
         "summary": (
             "Простая старорусская похлёбка из чёрной редьки и картофеля. "
             "Вкус сильно меняется от заправки: с водой получается более остро "
@@ -244,7 +244,7 @@ RECIPES = {
         "title": "Суп из красной чечевицы с куркумой и кокосом",
         "time": "25-30 минут",
         "servings": "3-4 порции",
-        "image_path": "assets/recipes/red_lentil_turmeric_coconut_soup.jpg",
+        "image_path": "assets/recipes/red_lentil_turmeric_coconut_soup_natural.jpg",
         "summary": (
             "Согревающий суп с восточными нотками: красная чечевица, томаты, "
             "кокосовое молоко и мягкие специи дают плотный вкус, клетчатку "
@@ -311,7 +311,7 @@ RECIPES = {
         "title": "Куриный костный бульон",
         "time": "12-24 часа",
         "servings": "3-4 л бульона",
-        "image_path": "assets/recipes/chicken_bone_broth.jpg",
+        "image_path": "assets/recipes/chicken_bone_broth_natural.jpg",
         "summary": (
             "Насыщенный костный бульон на куриных костях, шейках, крыльях "
             "или суставных частях. Его можно пить отдельно или использовать "
@@ -373,7 +373,7 @@ RECIPES = {
         "title": "Суп-пюре из сезонных овощей",
         "time": "35 минут",
         "servings": "3-4 порции",
-        "image_path": "assets/recipes/seasonal_vegetable_puree_soup.jpg",
+        "image_path": "assets/recipes/seasonal_vegetable_puree_soup_natural.jpg",
         "summary": (
             "Нежный кремовый суп с бархатистой текстурой и насыщенным вкусом. "
             "Хороший базовый рецепт для сезонных овощей: брокколи, цветной капусты, "
@@ -435,7 +435,7 @@ RECIPES = {
         "title": "Крем-суп из кабачка и фенхеля",
         "time": "35 минут",
         "servings": "5-6 порций",
-        "image_path": "assets/recipes/zucchini_fennel_cream_soup.jpg",
+        "image_path": "assets/recipes/zucchini_fennel_cream_soup_natural.jpg",
         "summary": (
             "Нежный овощной крем-суп с бархатистой текстурой и тонким анисовым "
             "ароматом фенхеля. Хороший вариант для лёгкого ужина или мягкого "
@@ -493,7 +493,7 @@ RECIPES = {
         "title": "Свекольный суп-пюре",
         "time": "45 минут",
         "servings": "4-5 порций",
-        "image_path": "assets/recipes/beet_puree_soup_constructor.jpg",
+        "image_path": "assets/recipes/beet_puree_soup_constructor_natural.jpg",
         "summary": (
             "Насыщенный свекольный суп-пюре с кремовой текстурой. "
             "Это рецепт-конструктор: основу можно дополнить чечевицей, нутом "
@@ -562,7 +562,7 @@ RECIPES = {
         "title": "Суп с красной рыбой и киноа",
         "time": "2 часа 30 минут",
         "servings": "3-4 порции",
-        "image_path": "assets/recipes/red_fish_quinoa_soup.jpg",
+        "image_path": "assets/recipes/red_fish_quinoa_soup_natural.jpg",
         "summary": (
             "Лёгкий ароматный суп на рыбном бульоне с нежной красной рыбой, "
             "киноа, имбирём и шпинатом. Хороший вариант для полезного обеда "
@@ -619,7 +619,7 @@ RECIPES = {
         "title": "Суп минестроне",
         "time": "45 минут",
         "servings": "4-5 порций",
-        "image_path": "assets/recipes/minestrone_soup.jpg",
+        "image_path": "assets/recipes/minestrone_soup_natural.jpg",
         "summary": (
             "Насыщенный итальянский овощной суп с ярким вкусом томатов, "
             "свежих трав и сезонных овощей. Хорошо подходит для заготовки "
@@ -690,7 +690,7 @@ RECIPES = {
         "title": "Зелёные щи со щавелем и яйцом",
         "time": "7-9 часов с варкой бульона",
         "servings": "4 порции",
-        "image_path": "assets/recipes/green_sorrel_egg_soup.jpg",
+        "image_path": "assets/recipes/green_sorrel_egg_soup_natural.jpg",
         "summary": (
             "Ароматные весенние щи на насыщенном костном бульоне с щавелем, "
             "зелёным луком и яйцом. Традиционное блюдо с яркой кислинкой "
@@ -747,7 +747,7 @@ RECIPES = {
         "title": "Суп-пюре из кабачков с авокадо и тыквенными семечками",
         "time": "30 минут без учёта бульона",
         "servings": "2-3 порции",
-        "image_path": "assets/recipes/zucchini_avocado_pumpkin_seeds_soup.jpg",
+        "image_path": "assets/recipes/zucchini_avocado_pumpkin_seeds_soup_natural.jpg",
         "summary": (
             "Нежный кремовый суп-пюре с кабачком, костным бульоном, авокадо "
             "и хрустящими тыквенными семечками. Лёгкий по текстуре, но хорошо "
@@ -819,7 +819,7 @@ RECIPES = {
         "title": "Щи на курином бульоне",
         "time": "4-5 часов",
         "servings": "большая кастрюля 3-4 л",
-        "image_path": "assets/recipes/chicken_broth_shchi.jpg",
+        "image_path": "assets/recipes/chicken_broth_shchi_natural.jpg",
         "summary": (
             "Наваристые домашние щи на золотистом курином бульоне с капустой, "
             "картофелем и томатной зажаркой. Уютное первое блюдо для холодного "
@@ -905,7 +905,7 @@ RECIPES = {
         "title": "Суп с фрикадельками из горбуши и киноа",
         "time": "1 час",
         "servings": "кастрюля 2 л",
-        "image_path": "assets/recipes/pink_salmon_meatballs_quinoa_soup.jpg",
+        "image_path": "assets/recipes/pink_salmon_meatballs_quinoa_soup_natural.jpg",
         "summary": (
             "Лёгкий, но сытный суп для холодного времени года: нежные рыбные "
             "фрикадельки, киноа, овощной бульон и свежая имбирно-лаймовая нотка."
@@ -990,7 +990,7 @@ RECIPES = {
         "title": "Уха из петуха",
         "time": "25-30 минут",
         "servings": "4-6 порций",
-        "image_path": "assets/recipes/rooster_seafood_coconut_soup.jpg",
+        "image_path": "assets/recipes/rooster_seafood_coconut_soup_natural.jpg",
         "summary": (
             "Необычный насыщенный суп на курином бульоне с кокосовым молоком, "
             "креветками, кальмарами, рисовой лапшой и яичными нитями. Имбирь, "
@@ -1072,7 +1072,7 @@ RECIPES = {
         "title": "Суп из бобовых с овощами и кокосовым молоком",
         "time": "1 час + замачивание на ночь",
         "servings": "кастрюля 3 л",
-        "image_path": "assets/recipes/legume_vegetable_coconut_soup.jpg",
+        "image_path": "assets/recipes/legume_vegetable_coconut_soup_natural.jpg",
         "summary": (
             "Сытный ароматный суп из бобовых, овощей, кокосового молока "
             "и пряных специй. Густая текстура и мягкий согревающий вкус делают "

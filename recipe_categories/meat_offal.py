@@ -4,7 +4,7 @@ RECIPES = {
         "title": "Печёночные оладьи",
         "time": "20-25 минут",
         "servings": "3-4 порции",
-        "image_path": "assets/recipes/liver_pancakes_new.jpg",
+        "image_path": "assets/recipes/liver_pancakes_new_natural.jpg",
         "summary": (
             "Питательные печёночные оладьи для перекуса, завтрака или быстрого ужина. "
             "Печень — хороший источник гемового железа и насыщенного вкуса."
@@ -62,7 +62,7 @@ RECIPES = {
         "title": "Варёный язык",
         "time": "2 часа 30 минут - 3 часа + замачивание",
         "servings": "6-8 порций",
-        "image_path": "assets/recipes/boiled_beef_tongue.jpg",
+        "image_path": "assets/recipes/boiled_beef_tongue_natural.jpg",
         "summary": (
             "Нежный и ароматный говяжий язык с классическим набором овощей "
             "и специй. Главный секрет — правильная подготовка, медленная варка "
@@ -136,7 +136,7 @@ RECIPES = {
         "title": "Куриные сердечки в кокосовом молоке с карри",
         "time": "30-35 минут",
         "servings": "2-3 порции",
-        "image_path": "assets/recipes/chicken_hearts_coconut_curry.jpg",
+        "image_path": "assets/recipes/chicken_hearts_coconut_curry_natural.jpg",
         "summary": (
             "Нежные куриные сердечки в ароматном кокосовом соусе с карри. "
             "Сытное блюдо с восточными нотками, хорошим количеством белка "
@@ -203,7 +203,7 @@ RECIPES = {
         "title": "Салат с куриной печенью и шпинатом",
         "time": "15-20 минут",
         "servings": "1-2 порции",
-        "image_path": "assets/recipes/chicken_liver_spinach_salad.jpg",
+        "image_path": "assets/recipes/chicken_liver_spinach_salad_natural.jpg",
         "summary": (
             "Питательный салат с тёплой куриной печенью, свежим шпинатом, "
             "помидором и огурцом. Хороший баланс белка, зелени и свежих овощей "
@@ -264,7 +264,7 @@ RECIPES = {
         "title": "Мясной рулет",
         "time": "1 час 10 минут",
         "servings": "6-8 порций",
-        "image_path": "assets/recipes/meatloaf.jpg",
+        "image_path": "assets/recipes/meatloaf_natural.jpg",
         "summary": (
             "Универсальный мясной рулет с миндальной мукой, томатами, луком "
             "и пряностями. Хорошо хранится, подходит для ужина, нарезки "
@@ -336,7 +336,7 @@ RECIPES = {
         "title": "Паштет из печени",
         "time": "1 час 30 минут",
         "servings": "6-8 порций",
-        "image_path": "assets/recipes/liver_pate.jpg",
+        "image_path": "assets/recipes/liver_pate_natural.jpg",
         "summary": (
             "Нежный печёночный паштет с луком-шалотом, чесноком, розмарином "
             "и тимьяном. Подходит для завтрака, перекуса и заготовки на несколько дней."
@@ -404,7 +404,7 @@ RECIPES = {
         "title": "Паштет из печени со сливами",
         "time": "1 час",
         "servings": "6-8 порций",
-        "image_path": "assets/recipes/liver_pate_plums.jpg",
+        "image_path": "assets/recipes/liver_pate_plums_natural.jpg",
         "summary": (
             "Нежный печёночный паштет с фруктовой ноткой свежих слив и бархатистой "
             "текстурой. Запекается вместе с овощами, а затем быстро пробивается "
@@ -462,7 +462,7 @@ RECIPES = {
         "title": "Тушёные субпродукты в кокосовом молоке",
         "time": "1 час 15 минут",
         "servings": "3-4 порции",
-        "image_path": "assets/recipes/stewed_offal_coconut_milk.jpg",
+        "image_path": "assets/recipes/stewed_offal_coconut_milk_natural.jpg",
         "summary": (
             "Нежные субпродукты в ароматном кокосовом соусе с луком и хрустящей "
             "спаржей. Сытное блюдо с хорошим содержанием белка, железа и витаминов "
@@ -521,7 +521,7 @@ RECIPES = {
         "title": "Мясные зразы с тремя начинками",
         "time": "1 час 20 минут",
         "servings": "12-15 зраз",
-        "image_path": "assets/recipes/meat_zrazy_three_fillings.jpg",
+        "image_path": "assets/recipes/meat_zrazy_three_fillings_natural.jpg",
         "summary": (
             "Сочные мясные зразы с сюрпризом внутри: грибная начинка с луком, "
             "зелёная с яйцом или морковная с яйцом. Удобный рецепт-конструктор "
@@ -596,7 +596,7 @@ RECIPES = {
         "title": "Мозговые косточки с овощной смесью на бородинском хлебе",
         "time": "12 часов 40 минут",
         "servings": "2-3 порции",
-        "image_path": "assets/recipes/bone_marrow_borodinsky_vegetables.jpg",
+        "image_path": "assets/recipes/bone_marrow_borodinsky_vegetables_natural.jpg",
         "summary": (
             "Сытная закуска с нежным костным мозгом, свежей овощной смесью "
             "и подсушенным бородинским хлебом. Контраст насыщенного вкуса "
@@ -664,7 +664,7 @@ RECIPES = {
         "title": "Котлеты из куриной печени с цуккини",
         "time": "30-35 минут",
         "servings": "3-4 порции",
-        "image_path": "assets/recipes/chicken_liver_zucchini_cutlets.jpg",
+        "image_path": "assets/recipes/chicken_liver_zucchini_cutlets_natural.jpg",
         "summary": (
             "Нежные котлеты из куриной печени и куриного фарша с цуккини и луком. "
             "Быстрая обжарка даёт корочку, а короткое тушение под крышкой сохраняет "
@@ -726,7 +726,7 @@ RECIPES = {
         "title": "Тёплый салат с телятиной и авокадо",
         "time": "40-50 минут",
         "servings": "2 порции",
-        "image_path": "assets/recipes/warm_veal_avocado_salad.jpg",
+        "image_path": "assets/recipes/warm_veal_avocado_salad_natural.jpg",
         "summary": (
             "Сытный, но лёгкий тёплый салат с отварной телятиной, авокадо, огурцом "
             "и свежей зеленью. Оливковое масло и лимон подчёркивают вкус без тяжёлой "
@@ -786,7 +786,7 @@ RECIPES = {
         "title": "Говядина с брокколи",
         "time": "45-50 минут",
         "servings": "2-3 порции",
-        "image_path": "assets/recipes/beef_broccoli.jpg",
+        "image_path": "assets/recipes/beef_broccoli_natural.jpg",
         "summary": (
             "Простое блюдо в одной сковороде: нежная говядина, сочная морковь "
             "и брокколи, тушёные с ароматными специями. Подходит для сытного "
@@ -848,7 +848,7 @@ RECIPES = {
         "title": "Сальтимбокка из телятины",
         "time": "25-30 минут",
         "servings": "2 порции",
-        "image_path": "assets/recipes/veal_saltimbocca.jpg",
+        "image_path": "assets/recipes/veal_saltimbocca_natural.jpg",
         "summary": (
             "Нежные рулетики из телятины с тимьяном и свежей рукколой. "
             "Быстрое итальянское блюдо с золотистой корочкой снаружи "

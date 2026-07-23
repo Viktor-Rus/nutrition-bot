@@ -4,7 +4,7 @@ RECIPES = {
         "title": "Куриные крылья с йогуртовым соусом",
         "time": "55-60 минут",
         "servings": "2 крупные крылышка",
-        "image_path": "assets/recipes/chicken_wings_yogurt_sauce.jpg",
+        "image_path": "assets/recipes/chicken_wings_yogurt_sauce_natural.jpg",
         "summary": (
             "Нежные и сочные куриные крылья с румяной корочкой, "
             "замаринованные в ароматном йогуртовом соусе. Хороший вариант "
@@ -58,7 +58,7 @@ RECIPES = {
         "title": "Куриные голени на гриле с цитрусовым маринадом",
         "time": "55-60 минут",
         "servings": "2 голени",
-        "image_path": "assets/recipes/grilled_chicken_drumsticks_citrus_marinade.jpg",
+        "image_path": "assets/recipes/grilled_chicken_drumsticks_citrus_marinade_natural.jpg",
         "summary": (
             "Сочные куриные голени с ярким цитрусовым маринадом, лёгкой сладостью "
             "мёда и румяной корочкой. Хороший вариант для летнего пикника "
@@ -116,7 +116,7 @@ RECIPES = {
         "title": "Куриное филе с соусом из кешью",
         "time": "35-40 минут + замачивание кешью",
         "servings": "2 филе",
-        "image_path": "assets/recipes/chicken_fillet_cashew_sauce.jpg",
+        "image_path": "assets/recipes/chicken_fillet_cashew_sauce_natural.jpg",
         "summary": (
             "Нежное куриное филе под кремовым ореховым соусом из кешью. "
             "Питательное блюдо для спокойного ужина: белок, полезные жиры "
@@ -169,7 +169,7 @@ RECIPES = {
         "title": "Фрикадельки из индейки в томатном соусе",
         "time": "35-40 минут",
         "servings": "3-4 порции",
-        "image_path": "assets/recipes/turkey_meatballs_tomato_sauce.jpg",
+        "image_path": "assets/recipes/turkey_meatballs_tomato_sauce_natural.jpg",
         "summary": (
             "Нежные фрикадельки из индейки или курицы в ароматном томатном соусе. "
             "Овсяные хлопья делают текстуру мягче и сочнее, а специи добавляют "
@@ -228,7 +228,7 @@ RECIPES = {
         "title": "Тушёная индейка в кокосовом карри",
         "time": "35 минут",
         "servings": "3-4 порции",
-        "image_path": "assets/recipes/turkey_coconut_curry.jpg",
+        "image_path": "assets/recipes/turkey_coconut_curry_natural.jpg",
         "summary": (
             "Нежное филе индейки в ароматном кокосовом соусе с пастой карри. "
             "Простое, сытное и согревающее блюдо для полезного ужина."
@@ -273,7 +273,7 @@ RECIPES = {
         "title": "Фаршированная куриная грудка под морковным соусом",
         "time": "1 час 15 минут",
         "servings": "2 грудки",
-        "image_path": "assets/recipes/stuffed_chicken_breast_carrot_sauce.jpg",
+        "image_path": "assets/recipes/stuffed_chicken_breast_carrot_sauce_natural.jpg",
         "summary": (
             "Нежная куриная или индюшиная грудка с морковной начинкой "
             "под бархатным овощным соусом. Элегантное и сытное блюдо "
@@ -343,7 +343,7 @@ RECIPES = {
         "title": "Тыква, фаршированная мясной начинкой",
         "time": "1 час 30 минут",
         "servings": "2 порции",
-        "image_path": "assets/recipes/stuffed_pumpkin_poultry_filling.jpg",
+        "image_path": "assets/recipes/stuffed_pumpkin_poultry_filling_natural.jpg",
         "summary": (
             "Осеннее блюдо с нежной запечённой тыквой и сочной начинкой "
             "из индейки или курицы с овощами, зеленью и бульоном. Эффектно "
@@ -405,7 +405,7 @@ RECIPES = {
         "title": "Капустные стейки с фаршем",
         "time": "1 час 20 минут",
         "servings": "3-4 порции",
-        "image_path": "assets/recipes/cabbage_steaks_poultry_mince.jpg",
+        "image_path": "assets/recipes/cabbage_steaks_poultry_mince_natural.jpg",
         "summary": (
             "Сочные капустные стейки с фаршем из курицы, индейки или кролика, "
             "помидорами и йогуртовым соусом. Необычная овощная альтернатива "
@@ -468,7 +468,7 @@ RECIPES = {
         "title": "Голень индейки, запечённая с айвой",
         "time": "2 часа 30 минут + маринование",
         "servings": "1 крупная голень",
-        "image_path": "assets/recipes/turkey_drumstick_quince.jpg",
+        "image_path": "assets/recipes/turkey_drumstick_quince_natural.jpg",
         "summary": (
             "Праздничная голень индейки с пряным маринадом, сладковатой айвой "
             "и румяной корочкой. Блюдо с восточными нотками для особого ужина "
@@ -555,7 +555,7 @@ RECIPES = {
         "title": "Рубленые котлеты из индейки",
         "time": "25 минут",
         "servings": "2 порции",
-        "image_path": "assets/recipes/chopped_turkey_cutlets.jpg",
+        "image_path": "assets/recipes/chopped_turkey_cutlets_natural.jpg",
         "summary": (
             "Нежные и сочные котлеты из рубленого филе индейки с зеленью. "
             "Главный секрет текстуры — нарезать мясо ножом, а не прокручивать "
@@ -617,7 +617,7 @@ RECIPES = {
         "title": "Кролик/индейка с тушёной капустой",
         "time": "1 час 30 минут",
         "servings": "3-4 порции",
-        "image_path": "assets/recipes/rabbit_or_turkey_stewed_cabbage.jpg",
+        "image_path": "assets/recipes/rabbit_or_turkey_stewed_cabbage_natural.jpg",
         "summary": (
             "Сытное и согревающее блюдо с нежным запечённым мясом и тушёной "
             "капустой с томатами, морковью и пряностями. Хороший вариант "
@@ -696,7 +696,7 @@ RECIPES = {
         "title": "Белковый блин из птицы с зеленью",
         "time": "25 минут",
         "servings": "1 большой блин или 2 маленьких",
-        "image_path": "assets/recipes/poultry_protein_pancake_greens.jpg",
+        "image_path": "assets/recipes/poultry_protein_pancake_greens_natural.jpg",
         "summary": (
             "Сытная низкоуглеводная основа для завтрака или ужина: нежный блин "
             "из мяса птицы, яиц и зелени. Готовится почти как яичница, но даёт "
@@ -766,7 +766,7 @@ RECIPES = {
         "title": "Рис с курицей и овощами в одной форме",
         "time": "1 час 10 минут",
         "servings": "3-4 порции",
-        "image_path": "assets/recipes/chicken_rice_vegetables_one_pan.jpg",
+        "image_path": "assets/recipes/chicken_rice_vegetables_one_pan_natural.jpg",
         "summary": (
             "Сытное и удобное блюдо, где рис, овощи и куриные бёдрышки "
             "готовятся одновременно в одной форме. Минимум посуды, хороший "
@@ -838,7 +838,7 @@ RECIPES = {
         "title": "Куриное суфле",
         "time": "1 час",
         "servings": "6-8 порций",
-        "image_path": "assets/recipes/chicken_souffle_basic.jpg",
+        "image_path": "assets/recipes/chicken_souffle_basic_natural.jpg",
         "summary": (
             "Нежное и воздушное куриное суфле, которое можно использовать как "
             "базовый рецепт для ужина, детского питания или праздничной подачи. "
@@ -918,7 +918,7 @@ RECIPES = {
         "title": "Тефтели с бурым рисом и тыквой",
         "time": "1 час 30 минут + замачивание риса",
         "servings": "4-6 порций",
-        "image_path": "assets/recipes/chicken_meatballs_brown_rice_pumpkin.jpg",
+        "image_path": "assets/recipes/chicken_meatballs_brown_rice_pumpkin_natural.jpg",
         "summary": (
             "Сочные тефтели из куриного фарша с бурым рисом и тыквой. "
             "Тыква добавляет мягкость и лёгкую натуральную сладость, а бурый "
@@ -1000,7 +1000,7 @@ RECIPES = {
         "title": "Фаршированный батат",
         "time": "1 час",
         "servings": "2-4 порции",
-        "image_path": "assets/recipes/stuffed_sweet_potato.jpg",
+        "image_path": "assets/recipes/stuffed_sweet_potato_natural.jpg",
         "summary": (
             "Запечённый батат с мягким пюре внутри, сытной мясной начинкой "
             "и козьим сыром сверху. Красивый вариант семейного ужина, который "
@@ -1078,7 +1078,7 @@ RECIPES = {
         "title": "Фаршированные перцы кольцами с курицей и грибами",
         "time": "50-60 минут",
         "servings": "4-6 порций",
-        "image_path": "assets/recipes/stuffed_pepper_rings_chicken_mushrooms.jpg",
+        "image_path": "assets/recipes/stuffed_pepper_rings_chicken_mushrooms_natural.jpg",
         "summary": (
             "Необычная подача фаршированных перцев: сладкие перцы нарезаются "
             "ровными кольцами и наполняются нежной начинкой из куриной грудки, "
@@ -1176,7 +1176,7 @@ RECIPES = {
         "title": "Индейка с брокколи и брюссельской капустой",
         "time": "40-45 минут",
         "servings": "3-4 порции",
-        "image_path": "assets/recipes/turkey_broccoli_brussels_herbs.jpg",
+        "image_path": "assets/recipes/turkey_broccoli_brussels_herbs_natural.jpg",
         "summary": (
             "Простое блюдо для семейного ужина: крупные кусочки индейки, "
             "брокколи и брюссельская капуста запекаются вместе с чесноком, "
@@ -1258,7 +1258,7 @@ RECIPES = {
         "title": "Тушёная капуста с курицей",
         "time": "1 час 10 минут",
         "servings": "4-6 порций",
-        "image_path": "assets/recipes/stewed_cabbage_chicken.jpg",
+        "image_path": "assets/recipes/stewed_cabbage_chicken_natural.jpg",
         "summary": (
             "Домашнее блюдо в одной посуде: нежная куриная грудка, сочная капуста, "
             "морковь, лук и зелень тушатся до мягкости. Подходит для простого "
@@ -1339,7 +1339,7 @@ RECIPES = {
         "title": "Куриные биточки с кабачком",
         "time": "30-35 минут",
         "servings": "4-5 порций",
-        "image_path": "assets/recipes/chicken_zucchini_patties.jpg",
+        "image_path": "assets/recipes/chicken_zucchini_patties_natural.jpg",
         "summary": (
             "Нежные куриные биточки с кабачком, зеленью и чесноком. "
             "Кабачок делает фарш мягче и сочнее, а готовить можно двумя "

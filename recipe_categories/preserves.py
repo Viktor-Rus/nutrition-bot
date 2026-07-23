@@ -4,7 +4,7 @@ RECIPES = {
         "title": "Голубцы из ботвы свёклы и мангольда",
         "time": "40 минут + заморозка",
         "servings": "10-12 штук",
-        "image_path": "assets/recipes/beet_greens_cabbage_rolls.jpg",
+        "image_path": "assets/recipes/beet_greens_cabbage_rolls_natural.jpg",
         "summary": (
             "Сезонная заготовка из молодой ботвы свёклы и мангольда с мясной "
             "начинкой без крупы, кабачком, зеленью и специями. Голубцы "
@@ -65,7 +65,7 @@ RECIPES = {
         "title": "Ферментированные овощи с капустой, морковью, яблоком и зеленью",
         "time": "30 минут + 2-5 дней ферментации",
         "servings": "1 банка",
-        "image_path": "assets/recipes/fermented_vegetables_cabbage_carrot_apple.jpg",
+        "image_path": "assets/recipes/fermented_vegetables_cabbage_carrot_apple_natural.jpg",
         "summary": (
             "Хрустящая овощная заготовка с капустой, морковью, яблоком, "
             "редькой, чесноком и зеленью, которая ферментируется в мягком "
@@ -134,7 +134,7 @@ RECIPES = {
         "title": "Хрустящие огурцы в листьях хрена",
         "time": "40 минут + замачивание и хранение",
         "servings": "1 литровая банка",
-        "image_path": "assets/recipes/crispy_cucumbers_horseradish_leaves.jpg",
+        "image_path": "assets/recipes/crispy_cucumbers_horseradish_leaves_natural.jpg",
         "summary": (
             "Домашняя заготовка из огурцов, плотно завернутых в листья хрена "
             "и залитых ароматным маринадом с чесноком, укропом и листьями "

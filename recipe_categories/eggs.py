@@ -4,7 +4,7 @@ RECIPES = {
         "title": "Нежные бананово-яичные блинчики",
         "time": "10 минут",
         "servings": "1 порция",
-        "image_path": "assets/recipes/banana_egg_pancakes.jpg",
+        "image_path": "assets/recipes/banana_egg_pancakes_natural.jpg",
         "summary": (
             "Очень быстрые и нежные блинчики всего из нескольких базовых "
             "ингредиентов. Подходят для полезного сладкого завтрака без муки "
@@ -68,7 +68,7 @@ RECIPES = {
         "title": "Омлет матушки Пуляр",
         "time": "35 минут",
         "servings": "1-2 порции",
-        "image_path": "assets/recipes/mother_poulard_omelette.jpg",
+        "image_path": "assets/recipes/mother_poulard_omelette_natural.jpg",
         "summary": (
             "Воздушный двухслойный омлет с нежным желтковым основанием и "
             "пышной белковой шапкой. Красивый французский завтрак, который "
@@ -132,7 +132,7 @@ RECIPES = {
         "title": "Омлет со стручковой фасолью и креветками с салатом",
         "time": "25 минут",
         "servings": "2 порции",
-        "image_path": "assets/recipes/omelette_green_beans_shrimp_salad.jpg",
+        "image_path": "assets/recipes/omelette_green_beans_shrimp_salad_natural.jpg",
         "summary": (
             "Сытный белковый омлет с хрустящей стручковой фасолью и нежными "
             "креветками, дополненный свежим салатом с лимонно-имбирной "

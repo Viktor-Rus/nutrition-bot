@@ -4,7 +4,7 @@ RECIPES = {
         "title": "Идеальное яйцо пашот",
         "time": "10 минут",
         "servings": "1 порция",
-        "image_path": "assets/recipes/perfect_poached_egg.jpg",
+        "image_path": "assets/recipes/perfect_poached_egg_natural.jpg",
         "summary": (
             "Нежное яйцо пашот с бархатистым белком и текучим желтком. "
             "Главный секрет здесь в небольшой подготовке: если убрать самый "
@@ -65,7 +65,7 @@ RECIPES = {
         "title": "Универсальная заготовка на зиму",
         "time": "30 минут",
         "servings": "10-12 порций",
-        "image_path": "assets/recipes/universal_winter_prep.jpg",
+        "image_path": "assets/recipes/universal_winter_prep_natural.jpg",
         "summary": (
             "Ароматная овощная заготовка из помидоров, перца, чеснока и зелени, "
             "которую удобно замораживать порционно. Отлично работает как основа "
@@ -125,7 +125,7 @@ RECIPES = {
         "title": "Кабачковые оладьи для заморозки",
         "time": "40 минут + заморозка",
         "servings": "6-8 порций",
-        "image_path": "assets/recipes/zucchini_fritters_freezer.jpg",
+        "image_path": "assets/recipes/zucchini_fritters_freezer_natural.jpg",
         "summary": (
             "Удобная заготовка из кабачковых оладий, которую можно держать "
             "в морозилке и быстро доводить до готовности без разморозки. "

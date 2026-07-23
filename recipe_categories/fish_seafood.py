@@ -4,7 +4,7 @@ RECIPES = {
         "title": "Кабачковые оладьи-котлеты: с рыбой или с крабом",
         "time": "35-40 минут",
         "servings": "2 варианта",
-        "image_path": "assets/recipes/zucchini_fritters_fish_crab.jpg",
+        "image_path": "assets/recipes/zucchini_fritters_fish_crab_natural.jpg",
         "summary": (
             "Сочные кабачковые оладьи-котлеты с двумя вкусными версиями: "
             "с королевским крабом и копчёной паприкой или с нежной треской. "
@@ -78,7 +78,7 @@ RECIPES = {
         "title": "Хек на подушке из овощей",
         "time": "30 минут",
         "servings": "2 порции",
-        "image_path": "assets/recipes/hake_vegetable_bed.jpg",
+        "image_path": "assets/recipes/hake_vegetable_bed_natural.jpg",
         "summary": (
             "Нежный запечённый хек на ароматной овощной подушке из лука, "
             "моркови и помидоров. Лёгкое и аккуратное блюдо, которое хорошо "
@@ -141,7 +141,7 @@ RECIPES = {
         "title": "Салат со скумбрией",
         "time": "10-15 минут",
         "servings": "2 порции",
-        "image_path": "assets/recipes/mackerel_salad.jpg",
+        "image_path": "assets/recipes/mackerel_salad_natural.jpg",
         "summary": (
             "Питательный и насыщенный салат из готовой скумбрии с яйцом, "
             "свежим огурцом, зеленью и авокадо. Хорошо работает и как "
@@ -203,7 +203,7 @@ RECIPES = {
         "title": "Кальмар с молодым горошком",
         "time": "20 минут",
         "servings": "2 порции",
-        "image_path": "assets/recipes/squid_green_peas.jpg",
+        "image_path": "assets/recipes/squid_green_peas_natural.jpg",
         "summary": (
             "Нежные кальмары в кокосово-куркумовом соусе с ярким молодым "
             "горошком. Быстрое, аккуратное и очень выразительное блюдо для "

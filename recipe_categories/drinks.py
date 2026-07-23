@@ -4,7 +4,7 @@ RECIPES = {
         "title": "Витаминный коктейль",
         "time": "10 минут",
         "servings": "2 порции",
-        "image_path": "assets/recipes/vitamin_cocktail.jpg",
+        "image_path": "assets/recipes/vitamin_cocktail_natural.jpg",
         "summary": (
             "Яркий овощной коктейль с морковью, свёклой, лимоном, куркумой "
             "и имбирём. Хорошо бодрит, освежает и подходит для лёгкого "
@@ -67,7 +67,7 @@ RECIPES = {
         "title": "Эликсир молодости",
         "time": "10 минут",
         "servings": "2 порции",
-        "image_path": "assets/recipes/elixir_of_youth.jpg",
+        "image_path": "assets/recipes/elixir_of_youth_natural.jpg",
         "summary": (
             "Свежий овощной напиток со свёклой, огурцом, петрушкой и водой. "
             "Получается лёгким, ярким и очень освежающим, хорошо подходит "
@@ -129,7 +129,7 @@ RECIPES = {
         "title": "Коктейль для увлажнения",
         "time": "10 минут",
         "servings": "2 порции",
-        "image_path": "assets/recipes/hydration_cocktail.jpg",
+        "image_path": "assets/recipes/hydration_cocktail_natural.jpg",
         "summary": (
             "Освежающий зелёный коктейль с яблоком, огурцом, сельдереем "
             "и лимоном. Лёгкий, сочный и очень приятный вариант для жаркого "

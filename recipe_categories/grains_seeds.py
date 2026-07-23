@@ -4,7 +4,7 @@ RECIPES = {
         "title": "Идеальная льняная каша",
         "time": "10 минут + настаивание 6-8 часов",
         "servings": "1 порция",
-        "image_path": "assets/recipes/flaxseed_porridge.jpg",
+        "image_path": "assets/recipes/flaxseed_porridge_natural.jpg",
         "summary": (
             "Нежная льняная каша без варки, которую удобно готовить с вечера. "
             "Семена льна сохраняют ценные жиры, клетчатку и дают бархатистую "
@@ -66,7 +66,7 @@ RECIPES = {
         "title": "Домашняя гранола",
         "time": "25-30 минут",
         "servings": "1 банка",
-        "image_path": "assets/recipes/homemade_granola.jpg",
+        "image_path": "assets/recipes/homemade_granola_natural.jpg",
         "summary": (
             "Хрустящая домашняя гранола из овсянки долгой варки, банана, какао, "
             "кокосового масла и любимых орехов. Удобная заготовка для быстрых "
@@ -130,7 +130,7 @@ RECIPES = {
         "title": "Творожок из зелёной гречки",
         "time": "10 минут + замачивание на ночь",
         "servings": "2-3 порции",
-        "image_path": "assets/recipes/green_buckwheat_curd.jpg",
+        "image_path": "assets/recipes/green_buckwheat_curd_natural.jpg",
         "summary": (
             "Нежный десерт без выпечки из замоченной зелёной гречки, ягод и банана. "
             "Получается кремовая текстура, яркий ягодный вкус и удобный вариант "
@@ -191,7 +191,7 @@ RECIPES = {
         "title": "Бородинский хлеб без глютена",
         "time": "13-15 часов с замачиванием",
         "servings": "1 хлеб или несколько мини-форм",
-        "image_path": "assets/recipes/gluten_free_borodinsky_bread.jpg",
+        "image_path": "assets/recipes/gluten_free_borodinsky_bread_natural.jpg",
         "summary": (
             "Насыщенный хлеб из зелёной гречки, пшена, льна и черёмуховой муки "
             "с пряным ароматом и хрустящей корочкой. Вариант бородинского вкуса "
@@ -266,7 +266,7 @@ RECIPES = {
         "title": "Хлеб из пророщенного маша",
         "time": "24-36 часов с проращиванием",
         "servings": "1 хлеб или несколько булочек",
-        "image_path": "assets/recipes/sprouted_mung_bread.jpg",
+        "image_path": "assets/recipes/sprouted_mung_bread_natural.jpg",
         "summary": (
             "Питательный безглютеновый хлеб из пророщенного маша с нежной текстурой, "
             "оливковым маслом, псиллиумом и ароматными специями. Хорошая основа "
@@ -337,7 +337,7 @@ RECIPES = {
         "title": "Дикий рис с тыквой и брюссельской капустой",
         "time": "50 минут",
         "servings": "2-3 порции",
-        "image_path": "assets/recipes/wild_rice_pumpkin_brussels.jpg",
+        "image_path": "assets/recipes/wild_rice_pumpkin_brussels_natural.jpg",
         "summary": (
             "Питательное и красочное блюдо из дикого и коричневого риса, тыквы, "
             "брюссельской капусты, сушёной клюквы и свежей мяты в мягком "
@@ -406,7 +406,7 @@ RECIPES = {
         "title": "Каша на ореховом молоке с ягодами и авокадо",
         "time": "10-15 минут + замачивание",
         "servings": "1 порция",
-        "image_path": "assets/recipes/nut_milk_porridge_berries_avocado.jpg",
+        "image_path": "assets/recipes/nut_milk_porridge_berries_avocado_natural.jpg",
         "summary": (
             "Питательная утренняя каша из гречки или киноа на ореховом молоке "
             "с ягодами, авокадо и дополнительными топпингами на выбор. "
@@ -467,7 +467,7 @@ RECIPES = {
         "title": "Хлеб из зелёной гречки и киноа",
         "time": "8-12 часов + выпечка",
         "servings": "1 буханка",
-        "image_path": "assets/recipes/green_buckwheat_quinoa_bread.jpg",
+        "image_path": "assets/recipes/green_buckwheat_quinoa_bread_natural.jpg",
         "summary": (
             "Питательный безглютеновый хлеб из зелёной гречки и киноа с семенами "
             "льна и псиллиумом. Снаружи получается хрустящая корочка, внутри — "
@@ -537,7 +537,7 @@ RECIPES = {
         "title": "Хлеб из кабачка с семенами",
         "time": "1 час 15 минут",
         "servings": "1 буханка",
-        "image_path": "assets/recipes/zucchini_seed_bread.jpg",
+        "image_path": "assets/recipes/zucchini_seed_bread_natural.jpg",
         "summary": (
             "Влажный, нежный хлеб на овощной основе с хрустящей семенной "
             "корочкой. Хорошо подходит для полезных бутербродов, намазок и "
@@ -603,7 +603,7 @@ RECIPES = {
         "title": "Блины из зелёной гречки со шпинатом",
         "time": "35 минут",
         "servings": "8-10 блинов",
-        "image_path": "assets/recipes/green_buckwheat_spinach_pancakes.jpg",
+        "image_path": "assets/recipes/green_buckwheat_spinach_pancakes_natural.jpg",
         "summary": (
             "Нежные зелёные блины с мягким ореховым вкусом зелёной гречки и "
             "добавкой шпината. Подходят и для сладкой подачи, и для более "
@@ -671,7 +671,7 @@ RECIPES = {
         "title": "Запечённая морковь с киноа",
         "time": "1 час 30 минут",
         "servings": "1-2 порции",
-        "image_path": "assets/recipes/roasted_carrots_quinoa.jpg",
+        "image_path": "assets/recipes/roasted_carrots_quinoa_natural.jpg",
         "summary": (
             "Тёплый и яркий салат с запечённой морковью, рассыпчатой киноа и "
             "свежими цитрусовыми акцентами. Подходит как лёгкий перекус, гарнир "
@@ -740,7 +740,7 @@ RECIPES = {
         "title": "Тёплый салат с кальмаром и киноа",
         "time": "35 минут",
         "servings": "2 порции",
-        "image_path": "assets/recipes/warm_squid_quinoa_salad.jpg",
+        "image_path": "assets/recipes/warm_squid_quinoa_salad_natural.jpg",
         "summary": (
             "Лёгкий, питательный и очень быстрый салат с нежным кальмаром, "
             "тушёными овощами и киноа. Хорошо подходит для ужина: насыщает, "
@@ -810,7 +810,7 @@ RECIPES = {
         "title": "Вафли из пшена с бананом и яблоком",
         "time": "30 минут",
         "servings": "4-5 вафель",
-        "image_path": "assets/recipes/millet_waffles_banana_apple.jpg",
+        "image_path": "assets/recipes/millet_waffles_banana_apple_natural.jpg",
         "summary": (
             "Нежные безглютеновые вафли с мягкой фруктовой сладостью и "
             "приятной текстурой. Хороший вариант семейного завтрака, который "
@@ -876,7 +876,7 @@ RECIPES = {
         "title": "Табуле из киноа",
         "time": "30 минут",
         "servings": "3-4 порции",
-        "image_path": "assets/recipes/quinoa_tabbouleh.jpg",
+        "image_path": "assets/recipes/quinoa_tabbouleh_natural.jpg",
         "summary": (
             "Свежий, яркий и очень лёгкий салат на основе киноа с большим "
             "количеством зелени, овощей и лимонно-оливковой заправкой. "
@@ -947,7 +947,7 @@ RECIPES = {
         "title": "Тыквенные блины на минеральной воде",
         "time": "40 минут",
         "servings": "8-10 блинов",
-        "image_path": "assets/recipes/pumpkin_pancakes_mineral_water.jpg",
+        "image_path": "assets/recipes/pumpkin_pancakes_mineral_water_natural.jpg",
         "summary": (
             "Воздушные, пористые и яркие блины с насыщенным тыквенным вкусом, "
             "кокосовой мягкостью и тёплым ароматом корицы. Минеральная вода "
@@ -1019,7 +1019,7 @@ RECIPES = {
         "title": "Льняные оладьи на кокосовом молоке",
         "time": "8 часов",
         "servings": "8-10 оладий",
-        "image_path": "assets/recipes/flaxseed_pancakes_coconut_milk.jpg",
+        "image_path": "assets/recipes/flaxseed_pancakes_coconut_milk_natural.jpg",
         "summary": (
             "Нежные и сытные безглютеновые оладьи без сахара с мягкой серединой "
             "и румяной корочкой. Лён даёт приятную текстуру и надолго сохраняет "
@@ -1088,7 +1088,7 @@ RECIPES = {
         "title": "Суп с фрикадельками из горбуши и киноа",
         "time": "1 час",
         "servings": "2 литра",
-        "image_path": "assets/recipes/salmon_meatball_quinoa_soup.jpg",
+        "image_path": "assets/recipes/salmon_meatball_quinoa_soup_natural.jpg",
         "summary": (
             "Лёгкий, но сытный суп с нежными рыбными фрикадельками, киноа, "
             "имбирной ноткой и свежестью лайма. Хорошо согревает и остаётся "
@@ -1165,7 +1165,7 @@ RECIPES = {
         "title": "Начос из нутовой муки",
         "time": "35-40 минут",
         "servings": "1 противень",
-        "image_path": "assets/recipes/chickpea_flour_nachos.jpg",
+        "image_path": "assets/recipes/chickpea_flour_nachos_natural.jpg",
         "summary": (
             "Домашние безглютеновые начос из нутовой муки с копчёной паприкой "
             "и цедрой лайма. Хрустящая альтернатива магазинным снекам для "
@@ -1240,7 +1240,7 @@ RECIPES = {
         "title": "Чечевица, приготовленная способом «ризотто»",
         "time": "30-35 минут",
         "servings": "4 порции",
-        "image_path": "assets/recipes/lentils_risotto_style.jpg",
+        "image_path": "assets/recipes/lentils_risotto_style_natural.jpg",
         "summary": (
             "Нежная чечевица в технике ризотто с постепенным добавлением "
             "горячего бульона, кабачком и болгарским перцем. Получается "
@@ -1315,7 +1315,7 @@ RECIPES = {
         "title": "Суп из бобовых с овощами и кокосовым молоком",
         "time": "1 час + замачивание",
         "servings": "3 литра",
-        "image_path": "assets/recipes/legume_soup_coconut_milk.jpg",
+        "image_path": "assets/recipes/legume_soup_coconut_milk_natural.jpg",
         "summary": (
             "Сытный густой суп из бобовых с овощами, кокосовым молоком и "
             "пряными специями. Хорошо согревает, насыщает и даёт мягкую "
@@ -1394,7 +1394,7 @@ RECIPES = {
         "title": "Хлеб из семян льна с яблочным пюре",
         "time": "1 час 15 минут",
         "servings": "1 буханка",
-        "image_path": "assets/recipes/flaxseed_bread_apple_puree.jpg",
+        "image_path": "assets/recipes/flaxseed_bread_apple_puree_natural.jpg",
         "summary": (
             "Плотный, ароматный хлеб без муки на основе льна, семян и "
             "яблочного пюре. Даёт хрустящую корочку, насыщенный вкус и очень "

@@ -4,7 +4,7 @@ RECIPES = {
         "title": "Салат «Светофор»",
         "time": "20-25 минут",
         "servings": "3-4 порции",
-        "image_path": "assets/recipes/traffic_light_salad.jpg",
+        "image_path": "assets/recipes/traffic_light_salad_natural.jpg",
         "summary": (
             "Яркий салат из сырых овощей с чесноком, зеленью и ароматным "
             "нерафинированным маслом. Получается очень свежим, хрустящим и "
@@ -69,7 +69,7 @@ RECIPES = {
         "title": "Лазанья с цукини и фаршем",
         "time": "1 час",
         "servings": "6-8 порций",
-        "image_path": "assets/recipes/zucchini_lasagna_meat.jpg",
+        "image_path": "assets/recipes/zucchini_lasagna_meat_natural.jpg",
         "summary": (
             "Сытная домашняя лазанья, в которой вместо классических листов "
             "используются тонкие ломтики цукини. Получается насыщенно, "
@@ -142,7 +142,7 @@ RECIPES = {
         "title": "Лепёшки из цукини",
         "time": "55 минут",
         "servings": "6-8 лепёшек",
-        "image_path": "assets/recipes/zucchini_tortillas.jpg",
+        "image_path": "assets/recipes/zucchini_tortillas_natural.jpg",
         "summary": (
             "Гибкие безглютеновые лепёшки с мягким вкусом цукини, которые "
             "хорошо подходят для полезных роллов, завертышей и лёгких "

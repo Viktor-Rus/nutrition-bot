@@ -4,7 +4,7 @@ RECIPES = {
         "title": "Кокосовый йогурт",
         "time": "24 часа + охлаждение",
         "servings": "8-10 порций",
-        "image_path": "assets/recipes/coconut_yogurt.jpg",
+        "image_path": "assets/recipes/coconut_yogurt_natural.jpg",
         "summary": (
             "Нежный домашний йогурт на кокосовом молоке с пробиотической "
             "закваской. Получается кремовым, натуральным и хорошо подходит "
@@ -67,7 +67,7 @@ RECIPES = {
         "title": "Гречневый хлеб",
         "time": "1 час 30 минут + замачивание",
         "servings": "1 буханка",
-        "image_path": "assets/recipes/green_buckwheat_bread.jpg",
+        "image_path": "assets/recipes/green_buckwheat_bread_natural.jpg",
         "summary": (
             "Домашний хлеб из зелёной гречки и семян чиа с плотной, но живой "
             "текстурой и насыщенным вкусом. Хорошо подходит для полезных "
@@ -133,7 +133,7 @@ RECIPES = {
         "title": "Шоколадный брауни с цуккини",
         "time": "50 минут",
         "servings": "8-10 порций",
-        "image_path": "assets/recipes/chocolate_brownie_zucchini.jpg",
+        "image_path": "assets/recipes/chocolate_brownie_zucchini_natural.jpg",
         "summary": (
             "Влажный, насыщенный брауни без классической муки, где цуккини "
             "добавляет мягкость и сочность, а какао и тёмный шоколад отвечают "
