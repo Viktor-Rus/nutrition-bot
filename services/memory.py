@@ -37,6 +37,37 @@ def get_user_memory_facts(telegram_id: int, limit: int = 20):
     ]
 
 
+def normalize_memory_fact(fact: str):
+    return " ".join((fact or "").split()).casefold()
+
+
+def get_user_memory_rows(telegram_id: int, limit: int = 100):
+    try:
+        result = (
+            supabase.table("user_memory")
+            .select("id, fact")
+            .eq("telegram_id", telegram_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+    except Exception:
+        result = (
+            supabase.table("user_memory")
+            .select("fact")
+            .eq("telegram_id", telegram_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+
+    return [
+        item
+        for item in result.data or []
+        if item.get("fact")
+    ]
+
+
 def get_user_memory(telegram_id: int):
     facts = get_user_memory_facts(telegram_id)
 
@@ -158,22 +189,28 @@ def delete_user_memory_fact(telegram_id: int, fact: str):
     if not fact:
         return "empty"
 
-    existing = (
-        supabase.table("user_memory")
-        .select("fact")
-        .eq("telegram_id", telegram_id)
-        .eq("fact", fact)
-        .limit(1)
-        .execute()
+    rows = get_user_memory_rows(telegram_id)
+    normalized_fact = normalize_memory_fact(fact)
+    existing = next(
+        (
+            row
+            for row in rows
+            if row.get("fact") == fact
+            or normalize_memory_fact(row.get("fact")) == normalized_fact
+        ),
+        None
     )
 
-    if not existing.data:
+    if not existing:
         return "not_found"
 
-    supabase.table("user_memory").delete().eq(
-        "telegram_id",
-        telegram_id
-    ).eq("fact", fact).execute()
+    if existing.get("id"):
+        supabase.table("user_memory").delete().eq("id", existing["id"]).execute()
+    else:
+        supabase.table("user_memory").delete().eq(
+            "telegram_id",
+            telegram_id
+        ).eq("fact", existing["fact"]).execute()
 
     return "deleted"
 
@@ -236,6 +273,10 @@ async def delete_memory_from_text(message: types.Message, value: str):
 
     if status == "not_found":
         await message.answer("Не нашёл такой факт в памяти.", reply_markup=main_keyboard())
+        return
+
+    if status == "empty":
+        await message.answer("Напиши номер факта или его точный текст.", reply_markup=main_keyboard())
         return
 
     await message.answer("Удалил факт из памяти.", reply_markup=main_keyboard())

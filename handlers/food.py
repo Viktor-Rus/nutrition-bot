@@ -17,7 +17,7 @@ from services.food_analysis import (
 )
 from services.profile import maybe_update_profile_from_text
 from services.users import maybe_upsert_private_user, upsert_user_profile
-from state import PENDING_ACTIONS
+from state import PENDING_ACTIONS, is_pending_message_consumed
 
 
 MEDIA_GROUP_BUFFER = {}
@@ -77,7 +77,13 @@ def register(dp: Dispatcher):
             return
         await answer_food_action(callback, callback.data)
 
-    @dp.message(lambda message: message.photo and message.from_user.id not in PENDING_ACTIONS)
+    @dp.message(
+        lambda message: (
+            message.photo
+            and message.from_user.id not in PENDING_ACTIONS
+            and not is_pending_message_consumed(message)
+        )
+    )
     async def photo_handler(message: types.Message):
         if message.media_group_id:
             enqueue_media_group(message)
@@ -88,7 +94,12 @@ def register(dp: Dispatcher):
             return
         await analyze_food_photo(message)
 
-    @dp.message(lambda message: message.from_user.id not in PENDING_ACTIONS)
+    @dp.message(
+        lambda message: (
+            message.from_user.id not in PENDING_ACTIONS
+            and not is_pending_message_consumed(message)
+        )
+    )
     async def analyze_food(message: types.Message):
         maybe_upsert_private_user(message)
         if message.text and await maybe_update_profile_from_text(message):

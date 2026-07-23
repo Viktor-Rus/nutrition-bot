@@ -12,13 +12,18 @@ from services.profile import PROFILE_TEXT_ACTIONS, handle_profile_pending_messag
 from services.recipes import recipe_search_results_keyboard, search_recipes, send_recipe_book
 from services.support import send_feedback_to_support
 from services.users import maybe_upsert_private_user
-from state import PENDING_ACTIONS, PROFILE_DRAFTS
+from state import (
+    PENDING_ACTIONS,
+    PROFILE_DRAFTS,
+    mark_pending_message_consumed,
+)
 
 
 def register(dp: Dispatcher):
     @dp.message(lambda message: message.text == MENU_CANCEL)
     async def menu_cancel(message: types.Message):
         maybe_upsert_private_user(message)
+        mark_pending_message_consumed(message)
         PENDING_ACTIONS.pop(message.from_user.id, None)
         PROFILE_DRAFTS.pop(message.from_user.id, None)
         await message.answer("Ок, отменил действие.", reply_markup=main_keyboard())
@@ -26,12 +31,14 @@ def register(dp: Dispatcher):
     @dp.message(lambda message: PENDING_ACTIONS.get(message.from_user.id) == "feedback")
     async def handle_feedback_message(message: types.Message):
         maybe_upsert_private_user(message)
+        mark_pending_message_consumed(message)
         PENDING_ACTIONS.pop(message.from_user.id, None)
         await send_feedback_to_support(message)
 
     @dp.message(lambda message: message.text and message.from_user.id in PENDING_ACTIONS)
     async def handle_pending_action(message: types.Message):
         maybe_upsert_private_user(message)
+        mark_pending_message_consumed(message)
         action = PENDING_ACTIONS.get(message.from_user.id)
         text = message.text.strip()
 
